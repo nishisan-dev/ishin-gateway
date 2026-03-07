@@ -101,9 +101,11 @@ public class HttpResponseAdapter {
                 responseSpan.tag("status-code", "" + w.getUpstreamResponse().getStatus());
                 w.getUpstreamResponse().getHeaderNames().forEach(header -> {
                     w.getClientResponse().addHeader(header, w.getUpstreamResponse().getHeader(header));
-                    responseSpan.tag("header-" + header, "" + w.getUpstreamResponse().getHeader(header));
-                    logger.debug("Upstream Response Headers: [{}]:={}", header, w.getUpstreamResponse().getHeader(header));
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Upstream Response Headers: [{}]:={}", header, w.getUpstreamResponse().getHeader(header));
+                    }
                 });
+                responseSpan.tag("upstream-headers-count", "" + w.getUpstreamResponse().getHeaderNames().size());
                 /**
                  * De fato faz o pipe
                  */
