@@ -35,7 +35,7 @@ public class HttpWorkLoad {
     private SyntHttpResponse upstreamResponse;
     private HttpAdapterServletResponse clientResponse;
     private String body = "";
-    private Boolean returnPipe = false;
+    private Boolean returnPipe = true;
 
     private final ConcurrentMap<String, Object> objects = new ConcurrentHashMap<>();
     
