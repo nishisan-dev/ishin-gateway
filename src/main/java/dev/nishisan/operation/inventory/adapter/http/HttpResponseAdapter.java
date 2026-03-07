@@ -41,23 +41,27 @@ public class HttpResponseAdapter {
         Long start = System.currentTimeMillis();
         try {
             //
-            // Esta é a response que vai para o usuário
+            // --- Fase 1: Setup do client response ---
             //
+            SpanWrapper setupSpan = tracer.createChildSpan("response-setup", responseSpan);
             boolean synth = false;
-            if (w.getClientResponse() == null) {
-                //
-                //
-                //
-                logger.debug("Using Client Response");
-                w.setClientResponse(w.getContext().res());
-            } else {
-                logger.warn("Not Using Client Response");
-                synth = true;
+            try {
+                if (w.getClientResponse() == null) {
+                    logger.debug("Using Client Response");
+                    w.setClientResponse(w.getContext().res());
+                } else {
+                    logger.warn("Not Using Client Response");
+                    synth = true;
+                }
+                w.getClientResponse().addHeader("x-trace-id", tracer.getTraceId());
+            } finally {
+                setupSpan.tag("synth", "" + synth);
+                setupSpan.finish();
             }
-            w.getClientResponse().addHeader("x-trace-id", tracer.getTraceId());
-            /**
-             * Aqui vamos tratar as transformações do response
-             */
+
+            //
+            // --- Fase 2: Response Processors (Groovy closures) ---
+            //
             if (!w.getResponseProcessors().isEmpty()) {
                 w.getResponseProcessors().forEach((p, c) -> {
                     SpanWrapper processorSpan = tracer.createChildSpan("response-processor", responseSpan);
@@ -75,6 +79,9 @@ public class HttpResponseAdapter {
                 });
             }
 
+            //
+            // --- Fase 3: Decisão de pipe ---
+            //
             boolean returnPipe = false;
             logger.debug("getReturnPipe():[{}]", w.getReturnPipe());
             if (w.getReturnPipe() && !synth) {
@@ -94,21 +101,27 @@ public class HttpResponseAdapter {
 
             responseSpan.tag("return-pipe", "" + returnPipe);
             if (returnPipe) {
-                /**
-                 * Reponse shoud be piped
-                 */
-                w.getClientResponse().setStatus(w.getUpstreamResponse().getStatus());
-                responseSpan.tag("status-code", "" + w.getUpstreamResponse().getStatus());
-                w.getUpstreamResponse().getHeaderNames().forEach(header -> {
-                    w.getClientResponse().addHeader(header, w.getUpstreamResponse().getHeader(header));
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Upstream Response Headers: [{}]:={}", header, w.getUpstreamResponse().getHeader(header));
-                    }
-                });
-                responseSpan.tag("upstream-headers-count", "" + w.getUpstreamResponse().getHeaderNames().size());
-                /**
-                 * De fato faz o pipe
-                 */
+                //
+                // --- Fase 4: Cópia de headers do upstream ---
+                //
+                SpanWrapper headersSpan = tracer.createChildSpan("response-headers-copy", responseSpan);
+                try {
+                    w.getClientResponse().setStatus(w.getUpstreamResponse().getStatus());
+                    headersSpan.tag("status-code", "" + w.getUpstreamResponse().getStatus());
+                    w.getUpstreamResponse().getHeaderNames().forEach(header -> {
+                        w.getClientResponse().addHeader(header, w.getUpstreamResponse().getHeader(header));
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Upstream Response Headers: [{}]:={}", header, w.getUpstreamResponse().getHeader(header));
+                        }
+                    });
+                    headersSpan.tag("upstream-headers-count", "" + w.getUpstreamResponse().getHeaderNames().size());
+                } finally {
+                    headersSpan.finish();
+                }
+
+                //
+                // --- Fase 5: Pipe de streaming ---
+                //
                 logger.debug("Returning Pipe to the Client....");
                 SpanWrapper clientSpan = tracer.createChildSpan("response-send-to-client", responseSpan);
 
