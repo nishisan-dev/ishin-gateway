@@ -34,9 +34,11 @@ import groovy.util.GroovyScriptEngine;
 import groovy.util.ResourceException;
 import groovy.util.ScriptException;
 import groovy.xml.XmlSlurper;
+import org.codehaus.groovy.control.CompilerConfiguration;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
+
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
@@ -52,10 +54,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
+
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import okhttp3.ConnectionPool;
 import okhttp3.Cookie;
 import okhttp3.CookieJar;
 import okhttp3.HttpUrl;
@@ -73,6 +76,37 @@ import org.apache.logging.log4j.Logger;
  */
 public class HttpProxyManager {
 
+    // --- SSL estático compartilhado (evita recriação criptográfica por request) ---
+    private static final X509TrustManager TRUST_ALL_MANAGER = new X509TrustManager() {
+        @Override
+        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) throws CertificateException {
+        }
+
+        @Override
+        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+            return new java.security.cert.X509Certificate[]{};
+        }
+    };
+
+    private static final SSLContext SHARED_SSL_CONTEXT;
+    private static final SSLSocketFactory SHARED_SSL_FACTORY;
+
+    static {
+        try {
+            SHARED_SSL_CONTEXT = SSLContext.getInstance("SSL");
+            SHARED_SSL_CONTEXT.init(null, new TrustManager[]{TRUST_ALL_MANAGER}, new java.security.SecureRandom());
+            SHARED_SSL_FACTORY = SHARED_SSL_CONTEXT.getSocketFactory();
+        } catch (NoSuchAlgorithmException | KeyManagementException ex) {
+            throw new ExceptionInInitializerError("Failed to initialize shared SSLContext: " + ex.getMessage());
+        }
+    }
+
+    private static final HostnameVerifier TRUST_ALL_HOSTNAMES = (hostname, session) -> true;
+
     private final EndPointConfiguration configuration;
     private GroovyScriptEngine gse;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -89,6 +123,9 @@ public class HttpProxyManager {
     private final SynthHttpResponseAdapter okHttpResponseAdapter = new SynthHttpResponseAdapter();
     private Cache<String, OkHttpClient> transientClients;
 
+    // Connection pool compartilhado entre todos os OkHttpClients
+    private final ConnectionPool sharedConnectionPool = new ConnectionPool(50, 5, TimeUnit.MINUTES);
+
     public HttpProxyManager(OAuthClientManager oauthManager, EndPointConfiguration configuration) {
         this.configuration = configuration;
         this.oauthManager = oauthManager;
@@ -104,6 +141,7 @@ public class HttpProxyManager {
      * @throws KeyManagementException
      */
     public OkHttpClient getHttpClientByListenerName(String name) throws NoSuchAlgorithmException, KeyManagementException {
+        // Usa SSLContext e ConnectionPool compartilhados (inicializados estaticamente)
         if (this.httpClients.containsKey(name)) {
             logger.debug("Reusing Client:[{}]", name);
             return this.httpClients.get(name);
@@ -124,29 +162,8 @@ public class HttpProxyManager {
             }
 
             //
-            //  Delega um TrustManager para aceitar todos os certificados
+            // Vamos criar um novo Client (usa SSL e pool estáticos)
             //
-            final TrustManager[] trustAllCerts = new TrustManager[]{
-                new X509TrustManager() {
-                    @Override
-                    public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) throws CertificateException {
-                    }
-
-                    @Override
-                    public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) throws CertificateException {
-                    }
-
-                    @Override
-                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                        return new java.security.cert.X509Certificate[]{};
-                    }
-                }
-            };
-            final SSLContext sslContext = SSLContext.getInstance("SSL");
-            sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
-            // Create an ssl socket factory with our all-trusting manager
-            final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
-
             if (backeEndConfiguration != null) {
                 if (backeEndConfiguration.getOauthClientConfig() != null) {
 
@@ -176,22 +193,15 @@ public class HttpProxyManager {
                         }
 
                         logger.debug("Target: Authenticated URL:[{}] Method:[{}]", newRequest.url().uri(), newRequest.method());
-                        logger.debug("Dumping Upstream Request Headers");
-                        for (String header : newRequest.headers().names()) {
-                            logger.debug("Header OUT: [{}]:=[{}]", header, newRequest.header(header));
+                        if (logger.isDebugEnabled()) {
+                            for (String header : newRequest.headers().names()) {
+                                logger.debug("Header OUT: [{}]:=[{}]", header, newRequest.header(header));
+                            }
                         }
-                        logger.debug("Done Dumping");
                         return chain.proceed(newRequest);
-                    }).sslSocketFactory(sslSocketFactory, (X509TrustManager) trustAllCerts[0])
-                            //
-                            // Set um hostNameVerifier para aceitar qualquer relação DOMAIN/Certificado
-                            //
-                            .hostnameVerifier(new HostnameVerifier() {
-                                @Override
-                                public boolean verify(String hostname, SSLSession session) {
-                                    return true;
-                                }
-                            })
+                    }).sslSocketFactory(SHARED_SSL_FACTORY, TRUST_ALL_MANAGER)
+                            .hostnameVerifier(TRUST_ALL_HOSTNAMES)
+                            .connectionPool(sharedConnectionPool)
                             .connectTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
                             .readTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
                             .callTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
@@ -217,21 +227,15 @@ public class HttpProxyManager {
                         logger.debug("Interceptor Called");
                         logger.debug("Calling Backend:[{}]", name);
                         logger.debug("Target URL:[{}] Method:[{}]", request.url().uri(), request.method());
-                        logger.debug("Header Dump");
-                        for (String header : request.headers().names()) {
-                            logger.debug("   [{}]:[{}]", header, request.header(header));
+                        if (logger.isDebugEnabled()) {
+                            for (String header : request.headers().names()) {
+                                logger.debug("   [{}]:[{}]", header, request.header(header));
+                            }
                         }
                         return chain.proceed(request);
-                    }).sslSocketFactory(sslSocketFactory, (X509TrustManager) trustAllCerts[0])
-                            .hostnameVerifier(new HostnameVerifier() {
-                                //
-                                // Set um hostNameVerifier para aceitar qualquer relação DOMAIN/Certificado
-                                //
-                                @Override
-                                public boolean verify(String hostname, SSLSession session) {
-                                    return true;
-                                }
-                            })
+                    }).sslSocketFactory(SHARED_SSL_FACTORY, TRUST_ALL_MANAGER)
+                            .hostnameVerifier(TRUST_ALL_HOSTNAMES)
+                            .connectionPool(sharedConnectionPool)
                             .connectTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
                             .readTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
                             .callTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
@@ -268,21 +272,15 @@ public class HttpProxyManager {
                             .build();
 
                     logger.debug("Target URL:[{}] Method:[{}]", request.url().uri(), request.method());
-                    logger.debug("Header Dump");
-                    for (String header : request.headers().names()) {
-                        logger.debug("   [{}]:[{}]", header, request.header(header));
+                    if (logger.isDebugEnabled()) {
+                        for (String header : request.headers().names()) {
+                            logger.debug("   [{}]:[{}]", header, request.header(header));
+                        }
                     }
                     return chain.proceed(request);
-                }).sslSocketFactory(sslSocketFactory, (X509TrustManager) trustAllCerts[0])
-                        .hostnameVerifier(new HostnameVerifier() {
-                            //
-                            // Set um hostNameVerifier para aceitar qualquer relação DOMAIN/Certificado
-                            //
-                            @Override
-                            public boolean verify(String hostname, SSLSession session) {
-                                return true;
-                            }
-                        })
+                }).sslSocketFactory(SHARED_SSL_FACTORY, TRUST_ALL_MANAGER)
+                        .hostnameVerifier(TRUST_ALL_HOSTNAMES)
+                        .connectionPool(sharedConnectionPool)
                         .connectTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
                         .readTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
                         .callTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
@@ -332,6 +330,10 @@ public class HttpProxyManager {
 
     private void initGse() throws IOException {
         this.gse = new GroovyScriptEngine("rules");
+        CompilerConfiguration config = this.gse.getConfig();
+        config.setRecompileGroovySource(true);
+        config.setMinimumRecompilationInterval(60); // 60 segundos
+        logger.info("GroovyScriptEngine initialized with recompilation interval: 60s");
     }
 
     /**
@@ -415,6 +417,7 @@ public class HttpProxyManager {
     public void handleRequest(String listenerName, CustomContextWrapper handler) {
         TracerWrapper tracerWrapper = handler.getTracerWrapper();
         SpanWrapper requestRootSpan = tracerWrapper.createChildSpan("request-handler");
+        requestRootSpan.tag("http.path", handler.path());
         try {
 
             handler.headerMap().forEach((k, v) -> {
@@ -500,11 +503,24 @@ public class HttpProxyManager {
                 }
 
                 Request req = this.httpRequestAdapter.getRequest(backendConfiguration, w, internalUid);
-                logger.debug("UID[{}] Start Execute Request: [" + req.url().uri().toASCIIString() + "] Method:" + handler.method().name(), internalUid);
+
+                // Injeta headers B3 de tracing na request para o backend
                 SpanWrapper requestSpan = tracerWrapper.createSpan("upstream-request");
+                requestSpan.getSpan().kind(brave.Span.Kind.CLIENT);
                 requestSpan.tag("upstream-client-name", backendname);
                 requestSpan.tag("upstream-req-url", req.url().uri().toASCIIString());
                 requestSpan.tag("upstream-req-method", handler.method().name());
+
+                if (tracerWrapper.getTracing() != null) {
+                    Request.Builder b3Builder = req.newBuilder();
+                    tracerWrapper.getTracing().propagation()
+                            .injector((Request.Builder carrier, String key, String value) -> carrier.header(key, value))
+                            .inject(requestSpan.getSpan().context(), b3Builder);
+                    req = b3Builder.build();
+                    logger.debug("B3 tracing headers injected into upstream request");
+                }
+
+                logger.debug("UID[{}] Start Execute Request: [" + req.url().uri().toASCIIString() + "] Method:" + handler.method().name(), internalUid);
                 try {
                     /**
                      * Aqui vamos executar o request do usuário no backend, o
@@ -516,6 +532,15 @@ public class HttpProxyManager {
                     Long start = System.currentTimeMillis();
                     try {
                         Response res = this.getHttpClientByListenerName(backendname).newCall(req).execute();
+
+                        // Tags de resposta upstream
+                        requestSpan.tag("upstream.status_code", res.code());
+                        if (res.header("Content-Type") != null) {
+                            requestSpan.tag("upstream.content_type", res.header("Content-Type"));
+                        }
+                        if (res.header("Content-Length") != null) {
+                            requestSpan.tag("upstream.content_length", res.header("Content-Length"));
+                        }
 
                         /**
                          * Aqui de fato pega a response do OkHTTP e a converte
