@@ -195,7 +195,9 @@ public class HttpProxyManager {
                         logger.debug("Target: Authenticated URL:[{}] Method:[{}]", newRequest.url().uri(), newRequest.method());
                         if (logger.isDebugEnabled()) {
                             for (String header : newRequest.headers().names()) {
-                                logger.debug("Header OUT: [{}]:=[{}]", header, newRequest.header(header));
+                                String value = header.equalsIgnoreCase("Authorization")
+                                        ? "Bearer ***" : newRequest.header(header);
+                                logger.debug("Header OUT: [{}]:=[{}]", header, value);
                             }
                         }
                         return chain.proceed(newRequest);
