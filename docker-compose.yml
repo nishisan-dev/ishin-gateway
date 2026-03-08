@@ -34,7 +34,7 @@ services:
     depends_on:
       - static-backend
       - nginx-proxy
-      - inventory-adapter
+      - n-gate
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.1
@@ -54,7 +54,7 @@ services:
     ports:
       - "9411:9411"
 
-  inventory-adapter:
+  n-gate:
     image: maven:3.9.9-eclipse-temurin-21
     user: "${UID:-1000}:${GID:-1000}"
     working_dir: /workspace
@@ -64,7 +64,7 @@ services:
       - static-backend
     environment:
       SPRING_PROFILES_DEFAULT: dev
-      INVENTORY_ADAPTER_CONFIG: /workspace/config/adapter.yaml
+      NGATE_CONFIG: /workspace/config/adapter.yaml
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
       MAVEN_CONFIG: /tmp/.m2
     volumes:
@@ -73,7 +73,7 @@ services:
     command:
       - /bin/bash
       - -lc
-      - mvn -DskipTests clean package && java -Dspring.profiles.active=dev -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/inventory-adapter-1.0-SNAPSHOT.jar
+      - mvn -DskipTests clean package && java -Dspring.profiles.active=dev -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/n-gate-1.0-SNAPSHOT.jar
     ports:
       - "9090:9090"
       - "9091:9091"

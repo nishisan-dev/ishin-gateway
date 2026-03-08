@@ -28,7 +28,7 @@ async def run_benchmark_stream(request: Request, mode: str = "requests", request
         env = os.environ.copy()
         env["BASELINE_URL"] = "http://static-backend:8080/"
         env["NGINX_PROXY_URL"] = "http://nginx-proxy:8080/"
-        env["JAVALIN_PROXY_URL"] = "http://inventory-adapter:9091/"
+        env["JAVALIN_PROXY_URL"] = "http://n-gate:9091/"
         env["BENCHMARK_MODE"] = mode
 
         # Modificar constantes no script via sed

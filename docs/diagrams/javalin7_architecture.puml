@@ -26,7 +26,7 @@ package "Docker Compose" {
 
     rectangle "**Zipkin**\n(zipkin:9411)" as zipkin #FFF3E0
 
-    package "inventory-adapter" as adapter {
+    package "n-gate" as adapter {
 
         rectangle "**Spring Boot 3.5**\nApplicationReadyEvent" as spring #E8EAF6
 

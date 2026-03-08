@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-Esta documentação descreve a migração do `inventory-adapter` de **Javalin 6.5.0 + Jetty 11** para **Javalin 7.0.1 + Jetty 12**, com suporte nativo a Virtual Threads (Project Loom) do JDK 21.
+Esta documentação descreve a migração do `n-gate` de **Javalin 6.5.0 + Jetty 11** para **Javalin 7.0.1 + Jetty 12**, com suporte nativo a Virtual Threads (Project Loom) do JDK 21.
 
 **Branch:** `feature/javalin7-jetty12-loom`
 **Data:** 2026-03-08
@@ -15,7 +15,7 @@ O Javalin 7 com Jetty 12 oferece suporte **nativo** a Loom, eliminando a necessi
 
 ## Arquitetura
 
-![Arquitetura Javalin 7](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/inventory-adapter/main/docs/diagrams/javalin7_architecture.puml)
+![Arquitetura Javalin 7](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/javalin7_architecture.puml)
 
 ## Mudanças Técnicas
 
@@ -80,7 +80,7 @@ O método `addServiceListener` foi dividido em dois:
 
 ## Benchmark — Resultados Comparativos
 
-Benchmarks executados via Apache Bench contra Nginx (baseline) e inventory-adapter (proxy), nos níveis de concorrência 1, 10, 50, 100 e 500.
+Benchmarks executados via Apache Bench contra Nginx (baseline) e n-gate (proxy), nos níveis de concorrência 1, 10, 50, 100 e 500.
 
 ### Throughput — Requests Fixas (5000 reqs)
 

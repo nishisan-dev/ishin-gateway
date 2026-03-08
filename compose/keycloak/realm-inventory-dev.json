@@ -8,12 +8,12 @@
   "resetPasswordAllowed": true,
   "clients": [
     {
-      "clientId": "inventory-adapter-client",
-      "name": "inventory-adapter-client",
+      "clientId": "ngate-client",
+      "name": "ngate-client",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "inventory-adapter-secret",
+      "secret": "ngate-secret",
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,

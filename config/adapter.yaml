@@ -11,7 +11,7 @@ endpoints:
         defaultBackend: "keycloak"
         secured: false
         secureProvider:
-          providerClass: "dev.nishisan.operation.inventory.adapter.auth.jwt.JWTTokenDecoder"
+          providerClass: "dev.nishisan.ngate.auth.jwt.JWTTokenDecoder"
           name: "local-keycloak-jwt"
           options:
             issuerUri: http://keycloak:8080/realms/inventory-dev
@@ -43,8 +43,8 @@ endpoints:
         endPointUrl: "http://keycloak:8080"
         oauthClientConfig:
           ssoName: "inventory-keycloak"
-          clientId: "inventory-adapter-client"
-          clientSecret: "inventory-adapter-secret"
+          clientId: "ngate-client"
+          clientSecret: "ngate-secret"
           userName: "inventory-svc"
           password: "inventory-svc-pass"
           tokenServerUrl: "http://keycloak:8080/realms/inventory-dev/protocol/openid-connect/token"

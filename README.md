@@ -1,8 +1,8 @@
-# Inventory Adapter - Dev Local
+# n-gate - Dev Local
 
 Este projeto está preparado para rodar localmente com um único `docker compose`, subindo:
 
-- `inventory-adapter`
+- `n-gate`
 - `keycloak` (SSO)
 - `zipkin` (tracing)
 - `static-backend` (nginx estático para benchmark)
@@ -34,9 +34,9 @@ docker compose down
 
 | Serviço | Porta Host | Porta Container | Descrição |
 |---------|:----------:|:---------------:|-----------|
-| `inventory-adapter` | `9090` | `9090` | Proxy principal (com auth OAuth ao upstream) |
-| `inventory-adapter` | `9091` | `9091` | Proxy benchmark (sem auth, upstream estático) |
-| `inventory-adapter` | `18080` | `18080` | Spring Boot / diagnóstico |
+| `n-gate` | `9090` | `9090` | Proxy principal (com auth OAuth ao upstream) |
+| `n-gate` | `9091` | `9091` | Proxy benchmark (sem auth, upstream estático) |
+| `n-gate` | `18080` | `18080` | Spring Boot / diagnóstico |
 | `keycloak` | `8081` | `8080` | SSO / Identity Provider |
 | `zipkin` | `9411` | `9411` | Distributed Tracing UI |
 | `static-backend` | `3080` | `8080` | Nginx com JSON fixo (benchmark only) |
@@ -65,8 +65,8 @@ Se responder `200`, o proxy está funcionando.
 
 Credenciais de desenvolvimento (definidas no realm import):
 
-- `client_id`: `inventory-adapter-client`
-- `client_secret`: `inventory-adapter-secret`
+- `client_id`: `ngate-client`
+- `client_secret`: `ngate-secret`
 - `username`: `inventory-svc`
 - `password`: `inventory-svc-pass`
 
@@ -76,8 +76,8 @@ Gerar token:
 curl -s -X POST 'http://localhost:8081/realms/inventory-dev/protocol/openid-connect/token' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d 'grant_type=password' \
-  -d 'client_id=inventory-adapter-client' \
-  -d 'client_secret=inventory-adapter-secret' \
+  -d 'client_id=ngate-client' \
+  -d 'client_secret=ngate-secret' \
   -d 'username=inventory-svc' \
   -d 'password=inventory-svc-pass' | jq -r .access_token
 ```
@@ -88,8 +88,8 @@ curl -s -X POST 'http://localhost:8081/realms/inventory-dev/protocol/openid-conn
 TOKEN=$(curl -s -X POST 'http://localhost:8081/realms/inventory-dev/protocol/openid-connect/token' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d 'grant_type=password' \
-  -d 'client_id=inventory-adapter-client' \
-  -d 'client_secret=inventory-adapter-secret' \
+  -d 'client_id=ngate-client' \
+  -d 'client_secret=ngate-secret' \
   -d 'username=inventory-svc' \
   -d 'password=inventory-svc-pass' | jq -r .access_token)
 
