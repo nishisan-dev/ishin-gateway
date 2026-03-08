@@ -1,0 +1,104 @@
+@startuml
+title n-gate — Fluxo de Request (Sequência)
+
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam sequenceParticipantBorderColor #333333
+
+actor "Cliente" as client
+participant "Javalin\n(Jetty 12)" as javalin
+participant "Token\nDecoder" as decoder
+participant "Groovy\nRules" as groovy
+participant "OkHttp\nClient" as okhttp
+participant "Response\nAdapter" as response
+participant "Backend" as backend
+database "Zipkin" as zipkin
+
+== Request Inbound ==
+
+client -> javalin : HTTP Request
+activate javalin
+
+javalin -> javalin : Criar rootSpan (SERVER)\nextract B3 headers
+note right: **Tags:** http.method, http.url,\nhttp.path, http.client_ip
+
+alt secured = true
+    javalin -> decoder : decodeToken(ctx)
+    activate decoder
+    note right: Span: **token-decoder**
+    decoder -> decoder : Validar JWT via JWKS
+    decoder --> javalin : IAuthUserPrincipal
+    deactivate decoder
+    javalin -> javalin : addObject("USER_PRINCIPAL")
+end
+
+== Rules Evaluation ==
+
+javalin -> groovy : evalDynamicRules()
+activate groovy
+note right: Span: **dynamic-rules**
+
+groovy -> groovy : Executar Rules.groovy
+note right: Span: **rules-execution**\n- Altera backend\n- Modifica headers/path\n- Cria synth response\n- Registra processors
+
+groovy --> javalin : HttpWorkLoad
+deactivate groovy
+
+== Upstream Request ==
+
+alt Resposta Sintética
+    javalin -> response : handleResponse(workload)
+else Proxy Normal
+    javalin -> okhttp : newCall(request).execute()
+    activate okhttp
+    note right: Span: **upstream-request** (CLIENT)\nInject B3 headers
+
+    alt Backend com OAuth
+        okhttp -> okhttp : Interceptor: inject\nAuthorization: Bearer ***
+    end
+
+    okhttp -> backend : HTTP Request + B3 + Bearer
+    activate backend
+    backend --> okhttp : HTTP Response
+    deactivate backend
+
+    okhttp --> javalin : Response
+    deactivate okhttp
+end
+
+== Response Processing ==
+
+javalin -> response : writeResponse(workload)
+activate response
+note right: Span: **response-adapter**
+
+response -> response : response-setup\n(add x-trace-id)
+note right: Span: **response-setup**
+
+loop para cada processor
+    response -> response : Response Processor
+    note right: Span: **response-processor**
+end
+
+response -> response : Copiar headers + status
+note right: Span: **response-headers-copy**
+
+alt returnPipe = true
+    response -> client : Stream InputStream → OutputStream\n(buffer 8KB)
+    note right: Span: **response-send-to-client**
+else returnPipe = false
+    response -> client : ctx.result(byte[])
+    note right: Span: **response-send-to-client**
+end
+
+deactivate response
+
+javalin -> javalin : Tag http.status_code\nFinalizar rootSpan
+
+deactivate javalin
+
+== Tracing ==
+
+javalin -[#gray]-> zipkin : Async: enviar spans\n(OkHttpSender)
+
+@enduml

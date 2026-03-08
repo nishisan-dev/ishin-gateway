@@ -1,0 +1,31 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title n-gate — Diagrama de Containers (C4)
+
+Person(client, "Cliente HTTP", "Aplicação ou usuário que consome APIs")
+
+System_Boundary(ngate_boundary, "n-gate") {
+    Container(javalin, "Javalin 7 / Jetty 12", "Java 21", "Servidor HTTP com múltiplos listeners (portas independentes)")
+    Container(groovy, "Groovy Rules Engine", "Groovy 3", "Motor de regras dinâmicas com hot-reload (60s)")
+    Container(auth, "Auth Layer", "JWT / OAuth2", "Validação JWT (entrada) + OAuth2 Client (saída)")
+    Container(okhttp, "OkHttp Client", "OkHttp 4", "HTTP Client com Connection Pool e Virtual Threads")
+    Container(tracing, "Tracing Layer", "Brave 6", "Instrumentação com 11+ spans semânticos por request")
+}
+
+System_Ext(backend, "Backend Services", "APIs de destino (HTTP/HTTPS)")
+System_Ext(keycloak, "Keycloak", "Identity Provider (OAuth2 / OIDC)")
+System_Ext(zipkin, "Zipkin", "Distributed Tracing Collector & UI")
+
+Rel(client, javalin, "HTTP Request", "TCP/SSL")
+Rel(javalin, auth, "Valida JWT")
+Rel(javalin, groovy, "Executa regras")
+Rel(groovy, okhttp, "Define backend e transformações")
+Rel(okhttp, backend, "Request upstream", "HTTP/HTTPS + Bearer Token")
+Rel(auth, keycloak, "JWKS / Token Endpoint", "HTTP")
+Rel(tracing, zipkin, "Spans", "HTTP POST")
+Rel(javalin, tracing, "Cria spans")
+Rel(okhttp, tracing, "Cria spans")
+
+SHOW_LEGEND()
+@enduml
