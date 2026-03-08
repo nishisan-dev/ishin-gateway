@@ -1,0 +1,49 @@
+@startuml
+title Inventory Adapter — Span Hierarchy (Zipkin/Brave)
+
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName Inter
+skinparam wrapWidth 250
+
+|Client|
+start
+:HTTP Request;
+note right
+  B3 headers extracted
+  if present
+end note
+
+|Adapter|
+#LightBlue:rootSpan (SERVER)
+""any-handler-[<listener>]""|
+
+partition "request-handler" {
+  #LightGreen:dynamic-rules|
+  partition "Groovy Scripts" {
+    #PaleGreen:rules-execution
+    (per script)|
+  }
+
+  #Orange:upstream-request (CLIENT)
+  ~70% do tempo total|
+  note right
+    B3 headers injected
+    into backend request
+  end note
+
+  #LightYellow:response-adapter|
+  partition "Response Pipeline" {
+    #Wheat:response-setup|
+    #Wheat:response-processor
+    (per closure)|
+    #Wheat:response-headers-copy|
+    #Wheat:response-send-to-client|
+  }
+}
+
+|Client|
+:HTTP Response
+with x-trace-id header;
+stop
+
+@enduml
