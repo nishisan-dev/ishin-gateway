@@ -41,7 +41,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,13 +54,12 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 /**
- * Cliente OAuth inteligente com suporte a cluster mode via NGrid.
- * <p>
- * Em modo standalone: funciona como antes — cada instância faz login/refresh independente.
- * <p>
- * Em modo cluster: apenas o <b>líder</b> faz login/refresh no IdP e publica os tokens
- * num {@link DistributedMap}. Os followers leem tokens do mapa distribuído,
- * eliminando carga redundante no IdP.
+ * Um Cliente OAUTH que é bonito de ver funcionar :) Este cliente é inteligente
+ * para lidar com todas as questoes de gestão do ciclo de vida do token, de
+ * forma que reaproveitamos o token até sua expiração. Este cliente também
+ * consegue gerenciar multiplos SSO's, para isso basta adicionar uma nova
+ * configuração através do método:
+ * addSsoConfiguration(OauthServerClientConfiguration configuration)
  *
  * @author Lucas Nishimura <lucas.nishimura@gmail.com>
  * @created 05.01.2023
@@ -76,8 +74,20 @@ public class OAuthClientManager implements ITokenProvider {
     private final ConcurrentMap<String, AuthToken> currentTokens = new ConcurrentHashMap<>();
     private final Logger logger = LogManager.getLogger(OAuthClientManager.class);
 
-    @Autowired
+    /**
+     * DistributedMap para compartilhar tokens entre instâncias do cluster.
+     * Null em modo standalone.
+     */
+    private DistributedMap<String, SerializableTokenData> distributedTokenMap;
+
+    /**
+     * Referência ao ClusterService, obtida via lookup programático no startup
+     * para evitar dependência circular com ConfigurationManager.
+     */
     private ClusterService clusterService;
+
+    @Autowired
+    private org.springframework.context.ApplicationContext applicationContext;
 
     /**
      * Mascara o token para log seguro — exibe apenas os primeiros 8 caracteres.
@@ -89,66 +99,29 @@ public class OAuthClientManager implements ITokenProvider {
     }
 
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private Thread tokenRefreshThread;
-
-    /**
-     * DistributedMap para compartilhar tokens entre instâncias do cluster.
-     * Null em modo standalone.
-     */
-    private DistributedMap<String, SerializableTokenData> distributedTokenMap;
+    private final Thread tokenRefreshThread = new Thread(new TokenRefreshThread());
 
     @EventListener(ApplicationReadyEvent.class)
     private void onStartup() {
         logger.debug("Nishisan oAuth2 Client Manager Started... :)");
         this.running.set(true);
+        tokenRefreshThread.start();
 
-        // Inicializar integração com cluster se habilitado
+        // Obter ClusterService via lookup para evitar dependência circular
+        this.clusterService = applicationContext.getBean(ClusterService.class);
+
+        // Inicializar integração cluster se habilitado
         if (clusterService.isClusterMode()) {
             logger.info("OAuthClientManager: cluster mode detected — initializing distributed token map");
             this.distributedTokenMap = clusterService.getDistributedMap(
                     TOKEN_MAP_NAME, String.class, SerializableTokenData.class);
-
-            // Leadership listener: start/stop refresh thread baseado na liderança
-            clusterService.addLeadershipListener((isLeader, leaderId) -> {
-                if (isLeader) {
-                    logger.info("OAuthClientManager: became leader — starting token refresh thread");
-                    startRefreshThread();
-                } else {
-                    logger.info("OAuthClientManager: lost leadership — stopping token refresh thread");
-                    stopRefreshThread();
-                }
-            });
-
-            // Se já é líder no boot, starta a thread
-            if (clusterService.isLeader()) {
-                startRefreshThread();
-            }
-        } else {
-            // Standalone: sempre roda a refresh thread
-            startRefreshThread();
         }
 
+        //
+        // Faz o Debug do client do Oauth do google
+        //
         java.util.logging.Logger httpLogger = java.util.logging.Logger.getLogger("com.google.gdata.client.http.HttpGDataRequest");
         httpLogger.setLevel(Level.ALL);
-    }
-
-    private synchronized void startRefreshThread() {
-        if (tokenRefreshThread != null && tokenRefreshThread.isAlive()) {
-            return;
-        }
-        tokenRefreshThread = new Thread(new TokenRefreshThread(), "ngate-token-refresh");
-        tokenRefreshThread.setDaemon(true);
-        tokenRefreshThread.start();
-    }
-
-    private synchronized void stopRefreshThread() {
-        running.set(false);
-        if (tokenRefreshThread != null) {
-            tokenRefreshThread.interrupt();
-            tokenRefreshThread = null;
-        }
-        // Re-enable running para quando voltar a ser líder
-        running.set(true);
     }
 
     public void addSsoConfiguration(OauthServerClientConfiguration configuration) {
@@ -165,40 +138,52 @@ public class OAuthClientManager implements ITokenProvider {
     }
 
     /**
-     * Obtém o access token para o SSO especificado.
-     * <p>
-     * Em cluster mode + follower: lê do DistributedMap.
-     * Em standalone ou leader: fluxo normal + publica no DistributedMap.
+     * Get the Access TOKEN using the OLD password flow
+     *
+     * @param ssoName
+     * @return
+     * @throws IOException
      */
     @Override
     public TokenResponse getAccessToken(String ssoName) throws IOException {
-        // ═══ Cluster mode: follower lê do DistributedMap ═══
-        if (clusterService.isClusterMode() && !clusterService.isLeader() && distributedTokenMap != null) {
-            return getTokenFromDistributedMap(ssoName);
-        }
-
-        // ═══ Standalone ou líder: fluxo normal ═══
         if (this.currentTokens.containsKey(ssoName)) {
+            //
+            // Opa temos um token salvo
+            //
             AuthToken savedResponse = this.currentTokens.get(ssoName);
 
             if (savedResponse.getCurrentResponse().getExpiresInSeconds() != null) {
+                //
+                // Vamos calcular a data de expiração
+                // 
                 Calendar cal = Calendar.getInstance();
+
                 cal.setTime(savedResponse.getLastTimeTokenRefreshed());
                 cal.add(Calendar.SECOND, savedResponse.getCurrentResponse().getExpiresInSeconds().intValue());
 
                 Date now = new Date(System.currentTimeMillis());
                 if (now.after(cal.getTime())) {
-                    // Token expirou, precisa de refresh
+                    //
+                    // Token Expirou , precisa de um refresh
+                    //
                     this.currentTokens.remove(ssoName);
                     try {
+                        //
+                        // Tenta fazer o Refresh
+                        //
                         this.refreshToken(savedResponse);
+                        //
+                        // Se conseguiu o refresh atualiza o cache
+                        //
                         this.currentTokens.put(ssoName, savedResponse);
-                        publishTokenToCluster(ssoName, savedResponse);
                         logger.debug("New Token Just Created For:[{}] ,Token:[{}]", ssoName, maskToken(savedResponse.getCurrentResponse().getAccessToken()));
                         return savedResponse.getCurrentResponse();
                     } catch (GeneralSecurityException | IOException ex) {
-                        // Não conseguiu refresh, segue no fluxo normal
+                        //
+                        // Não conseguiu fazer o Refresh, vai seguir no fluxo normal.
+                        //
                     }
+
                 } else {
                     logger.debug("SSO [{}] Using Cached Token From:[{}], Token:[{}]", ssoName, savedResponse.getConfiguration().getTokenServerUrl(), maskToken(savedResponse.getCurrentResponse().getAccessToken()));
                     return savedResponse.getCurrentResponse();
@@ -207,81 +192,34 @@ public class OAuthClientManager implements ITokenProvider {
         } else {
             logger.warn("Token Not Found:[{}] Will Request a New One", ssoName);
         }
-
+        //
         // Fluxo Normal
+        //
         try {
             OauthServerClientConfiguration oauthServerClientConfiguration = configuredSso.get(ssoName);
             TokenResponse response = this.getAccessTokenFromPassword(oauthServerClientConfiguration);
             Calendar cal = Calendar.getInstance();
             cal.setTime(new Date());
             cal.add(Calendar.SECOND, response.getExpiresInSeconds().intValue());
-            AuthToken authToken = new AuthToken(response, oauthServerClientConfiguration, ssoName, new Date(), cal.getTime());
-            this.currentTokens.put(ssoName, authToken);
-            publishTokenToCluster(ssoName, authToken);
+            this.currentTokens.put(ssoName, new AuthToken(response, oauthServerClientConfiguration, ssoName, new Date(), cal.getTime()));
             logger.debug("Sent New Token: [{}]", maskToken(response.getAccessToken()));
             return response;
         } catch (IOException ex) {
             logger.error("Failed to request Token:[{}]", ssoName, ex);
             throw ex;
         }
+
     }
 
     /**
-     * Lê token do DistributedMap (usado por followers em cluster mode).
-     */
-    private TokenResponse getTokenFromDistributedMap(String ssoName) throws IOException {
-        Optional<SerializableTokenData> opt = distributedTokenMap.get(ssoName);
-        if (opt.isPresent()) {
-            SerializableTokenData data = opt.get();
-            TokenResponse response = new TokenResponse();
-            response.setAccessToken(data.accessToken());
-            response.setRefreshToken(data.refreshToken());
-            response.setExpiresInSeconds(data.expiresInSeconds());
-            response.setTokenType(data.tokenType());
-            response.setScope(data.scope());
-            logger.debug("SSO [{}] Using cluster-replicated token, Token:[{}]", ssoName, maskToken(data.accessToken()));
-            return response;
-        }
-        // Token não está no mapa distribuído — pode ser que o líder ainda não tenha feito login
-        logger.warn("Token [{}] not found in distributed map — attempting local login", ssoName);
-        // Fallback: fazer login localmente (pode acontecer se o líder ainda está bootando)
-        OauthServerClientConfiguration config = configuredSso.get(ssoName);
-        if (config == null) {
-            throw new IOException("SSO [" + ssoName + "] not configured and not available in cluster");
-        }
-        return getAccessTokenFromPassword(config);
-    }
-
-    /**
-     * Publica token no DistributedMap para replicação no cluster.
-     */
-    private void publishTokenToCluster(String ssoName, AuthToken authToken) {
-        if (distributedTokenMap == null || !clusterService.isLeader()) {
-            return;
-        }
-        try {
-            TokenResponse response = authToken.getCurrentResponse();
-            SerializableTokenData data = new SerializableTokenData(
-                    response.getAccessToken(),
-                    response.getRefreshToken(),
-                    response.getExpiresInSeconds(),
-                    response.getTokenType(),
-                    response.getScope() != null ? response.getScope() : "",
-                    ssoName,
-                    authToken.getLastTimeTokenRefreshed(),
-                    authToken.getExpiresIn()
-            );
-            distributedTokenMap.put(ssoName, data);
-            logger.debug("Published token [{}] to distributed map", ssoName);
-        } catch (Exception e) {
-            logger.error("Failed to publish token [{}] to distributed map", ssoName, e);
-        }
-    }
-
-    /**
-     * Realiza o flow do grant_type password
+     * Realiza o flow do grant_type password no OAM
+     *
+     * @param oauthServerClientConfiguration
+     * @return
+     * @throws IOException
      */
     public TokenResponse getAccessTokenFromPassword(OauthServerClientConfiguration oauthServerClientConfiguration) throws IOException {
+
         GenericUrl url = new GenericUrl(oauthServerClientConfiguration.getTokenServerUrl());
         logger.debug("Requesting New Token At:[{}] With Grant Type:[password]", oauthServerClientConfiguration.getTokenServerUrl());
         PasswordTokenRequest passwordTokenRequest
@@ -291,19 +229,30 @@ public class OAuthClientManager implements ITokenProvider {
                         oauthServerClientConfiguration.getPassword());
 
         passwordTokenRequest.setGrantType("password");
-        passwordTokenRequest.setScopes(oauthServerClientConfiguration.getAuthScopes());
 
+        passwordTokenRequest.setScopes(oauthServerClientConfiguration.getAuthScopes());
         Map<String, String> headers = new HashMap<>();
-        if (oauthServerClientConfiguration.getOam() != null && oauthServerClientConfiguration.getAppKey() != null) {
+        //
+        // Headers específicos do SSO (app-key / oam)
+        //
+        if (oauthServerClientConfiguration.getOam()
+                != null && oauthServerClientConfiguration.getAppKey() != null) {
             headers.put("app-key", oauthServerClientConfiguration.getAppKey());
             headers.put("oam", oauthServerClientConfiguration.getOam());
+
         }
+
+        /**
+         * Cuida para que o Autenticador também possa ter headers customizados
+         */
         if (oauthServerClientConfiguration.getExtraHeaders() != null
                 && !oauthServerClientConfiguration.getExtraHeaders().isEmpty()) {
+
             headers.putAll(oauthServerClientConfiguration.getExtraHeaders());
         }
 
         passwordTokenRequest.setRequestInitializer(new CustomHttpRequestInitializer(headers));
+
         passwordTokenRequest.setClientAuthentication(
                 new BasicAuthentication(oauthServerClientConfiguration.getClientId(),
                         oauthServerClientConfiguration.getClientSecret()));
@@ -314,17 +263,14 @@ public class OAuthClientManager implements ITokenProvider {
             cal.setTime(new Date());
             cal.add(Calendar.SECOND, response.getExpiresInSeconds().intValue());
             logger.debug("Token [{}] Created New Expiration AT: [{}]", oauthServerClientConfiguration.getSsoName(), cal.getTime());
-            AuthToken authToken = new AuthToken(response, oauthServerClientConfiguration, oauthServerClientConfiguration.getSsoName(), new Date(), cal.getTime());
-            this.currentTokens.put(oauthServerClientConfiguration.getSsoName(), authToken);
-            publishTokenToCluster(oauthServerClientConfiguration.getSsoName(), authToken);
+            this.currentTokens.put(oauthServerClientConfiguration.getSsoName(), new AuthToken(response, oauthServerClientConfiguration, oauthServerClientConfiguration.getSsoName(), new Date(), cal.getTime()));
         } else {
             Calendar cal = Calendar.getInstance();
             cal.setTime(new Date());
             cal.add(Calendar.SECOND, response.getExpiresInSeconds().intValue());
             logger.debug("Token [{}] Renewed New Expiration AT: [{}]", oauthServerClientConfiguration.getSsoName(), cal.getTime());
-            AuthToken authToken = new AuthToken(response, oauthServerClientConfiguration, oauthServerClientConfiguration.getSsoName(), new Date(), cal.getTime());
-            this.currentTokens.replace(oauthServerClientConfiguration.getSsoName(), authToken);
-            publishTokenToCluster(oauthServerClientConfiguration.getSsoName(), authToken);
+            this.currentTokens.replace(oauthServerClientConfiguration.getSsoName(), new AuthToken(response, oauthServerClientConfiguration, oauthServerClientConfiguration.getSsoName(), new Date(), cal.getTime()));
+
         }
 
         return response;
@@ -332,6 +278,10 @@ public class OAuthClientManager implements ITokenProvider {
 
     /**
      * Solicita um Refresh do token
+     *
+     * @param previousToken
+     * @return
+     * @throws IOException
      */
     public TokenResponse refreshToken(AuthToken previousToken) throws IOException, GeneralSecurityException {
         GenericUrl tokenServerUrl = new GenericUrl(previousToken.getConfiguration().getTokenServerUrl());
@@ -345,6 +295,9 @@ public class OAuthClientManager implements ITokenProvider {
                 new BasicAuthentication(previousToken.getConfiguration().getClientId(),
                         previousToken.getConfiguration().getClientSecret()));
         Map<String, String> headers = new HashMap<>();
+        //
+        // Headers específicos do SSO (app-key / oam)
+        //
         if (previousToken.getConfiguration().getOam() != null && previousToken.getConfiguration().getAppKey() != null) {
             headers.put("app-key", previousToken.getConfiguration().getAppKey());
             headers.put("oam", previousToken.getConfiguration().getOam());
@@ -360,28 +313,30 @@ public class OAuthClientManager implements ITokenProvider {
         cal.add(Calendar.SECOND, response.getExpiresInSeconds().intValue());
         previousToken.setExpiresIn(cal.getTime());
         previousToken.setLastTimeTokenRefreshed(new Date());
-
-        // Publicar token atualizado no cluster
-        publishTokenToCluster(previousToken.getOauthName(), previousToken);
-
         return response;
     }
 
     /**
-     * Thread que verifica tokens próximos de expiração e faz refresh proativo.
-     * Em cluster mode, roda <b>apenas no líder</b>.
+     * Esta classizinha fica verificando se temos algum token próximo de
+     * expiração e pró ativamente faz o refresh do mesmo
      */
     private class TokenRefreshThread implements Runnable {
 
         @Override
         public void run() {
+
             Calendar cal = Calendar.getInstance();
             List<String> tokensToBeRemoved = new ArrayList<>();
-            while (running.get() && !Thread.currentThread().isInterrupted()) {
+            while (running.get()) {
+
+//                logger.debug("Total Tokens Found: [{}]", currentTokens.size());
                 currentTokens.forEach((tokenName, tokenAuth) -> {
                     if (tokenAuth.getCurrentResponse() != null) {
                         if (tokenAuth.getConfiguration().getUseRefreshToken()) {
                             if (tokenAuth.getCurrentResponse().getExpiresInSeconds() != null) {
+                                //
+                                // Verifica se temos tokens vencendos nos próxios 30s
+                                //
                                 cal.setTime(new Date());
                                 cal.add(Calendar.SECOND, tokenAuth.getConfiguration().getRenewBeforeSecs());
                                 if (cal.getTime().after(tokenAuth.getExpiresIn())) {
@@ -394,9 +349,16 @@ public class OAuthClientManager implements ITokenProvider {
                                         tokensToBeRemoved.add(tokenName);
                                     }
                                 }
+
                             }
                         } else {
+                            //
+                            // Refresh Token Not Enabled for 
+                            //
                             if (tokenAuth.getCurrentResponse().getExpiresInSeconds() != null) {
+                                //
+                                // Verifica se temos tokens vencendos nos próxios 30s
+                                //
                                 cal.setTime(new Date());
                                 cal.add(Calendar.SECOND, tokenAuth.getConfiguration().getRenewBeforeSecs());
                                 if (cal.getTime().after(tokenAuth.getExpiresIn())) {
@@ -416,11 +378,12 @@ public class OAuthClientManager implements ITokenProvider {
                     tokensToBeRemoved.clear();
                 }
 
+                //
+                // Descansa um pouquinho para poupar CPU xD
+                //
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                    break;
                 }
             }
         }
