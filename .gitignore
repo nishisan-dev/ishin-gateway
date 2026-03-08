@@ -4,3 +4,5 @@ log/
 *.iml
 *.log
 .m2-local/
+.ai/
+.vscode/
