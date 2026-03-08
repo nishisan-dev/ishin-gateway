@@ -30,6 +30,7 @@ public class EndPointConfiguration {
     private Map<String, BackendConfiguration> backends = new ConcurrentHashMap<>();
     private String ruleMapping;
     private Integer ruleMappingThreads = 1;
+    private String rulesBasePath = "rules";
     private Integer socketTimeout = 30;
 
     // Jetty Thread Pool
@@ -165,6 +166,14 @@ public class EndPointConfiguration {
 
     public void setDispatcherMaxRequestsPerHost(Integer dispatcherMaxRequestsPerHost) {
         this.dispatcherMaxRequestsPerHost = dispatcherMaxRequestsPerHost;
+    }
+
+    public String getRulesBasePath() {
+        return rulesBasePath;
+    }
+
+    public void setRulesBasePath(String rulesBasePath) {
+        this.rulesBasePath = rulesBasePath;
     }
 
 }

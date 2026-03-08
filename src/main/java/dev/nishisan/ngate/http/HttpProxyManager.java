@@ -352,11 +352,12 @@ public class HttpProxyManager {
     }
 
     private void initGse() throws IOException {
-        this.gse = new GroovyScriptEngine("rules");
+        String rulesPath = configuration.getRulesBasePath();
+        this.gse = new GroovyScriptEngine(rulesPath);
         CompilerConfiguration config = this.gse.getConfig();
         config.setRecompileGroovySource(true);
         config.setMinimumRecompilationInterval(60); // 60 segundos
-        logger.info("GroovyScriptEngine initialized with recompilation interval: 60s");
+        logger.info("GroovyScriptEngine initialized from [{}] with recompilation interval: 60s", rulesPath);
     }
 
     /**
