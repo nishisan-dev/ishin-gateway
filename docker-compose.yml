@@ -70,10 +70,11 @@ services:
     volumes:
       - ./:/workspace
       - maven-cache:/tmp/.m2
+      - ~/.m2/settings.xml:/tmp/maven-settings.xml:ro
     command:
       - /bin/bash
       - -lc
-      - mvn -DskipTests clean package && java -Dspring.profiles.active=dev -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/n-gate-1.0-SNAPSHOT.jar
+      - mvn -s /tmp/maven-settings.xml -DskipTests clean package && java -Dspring.profiles.active=dev -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/n-gate-1.0-SNAPSHOT.jar
     ports:
       - "9090:9090"
       - "9091:9091"

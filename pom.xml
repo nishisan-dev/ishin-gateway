@@ -335,4 +335,12 @@
         <maven.compiler.target>21</maven.compiler.target>
         <exec.mainClass>dev.nishisan.ngate.NGateApplication</exec.mainClass>
     </properties>
+
+    <repositories>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/nishisan-dev/nishi-utils</url>
+        </repository>
+    </repositories>
+
 </project>
