@@ -11,6 +11,18 @@
         .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .spinner { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+        .progress-bar-fill {
+            transition: width 0.4s ease-in-out;
+            background: linear-gradient(90deg, #10b981, #06b6d4, #8b5cf6);
+            background-size: 200% 100%;
+            animation: shimmer 2s ease-in-out infinite;
+        }
+        @keyframes shimmer { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+        .log-entry { animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        #logPanel::-webkit-scrollbar { width: 6px; }
+        #logPanel::-webkit-scrollbar-track { background: transparent; }
+        #logPanel::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     </style>
 </head>
 <body class="min-h-screen p-8">
@@ -47,19 +59,32 @@
             </div>
 
             <div class="glass-panel p-6 rounded-xl col-span-1 md:col-span-2 relative overflow-hidden h-full min-h-[300px]" id="resultContainer">
+                <!-- Empty State -->
                 <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
                     <svg class="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     <p>Aguardando execução para extrair as métricas...</p>
                 </div>
 
-                <div id="loadingState" class="absolute inset-0 flex flex-col items-center justify-center text-emerald-400 hidden bg-slate-900/50 backdrop-blur-sm z-10 transition-all">
-                    <svg class="w-12 h-12 mb-4 spinner" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <p class="font-medium animate-pulse">Inundando endpoints na rede interna Docker...</p>
+                <!-- Progress State (SSE live) -->
+                <div id="progressState" class="hidden h-full flex flex-col">
+                    <!-- Progress Bar -->
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <span id="progressLabel" class="text-sm font-medium text-emerald-400">Iniciando...</span>
+                            <span id="progressPercent" class="text-sm font-mono text-slate-400">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                            <div id="progressBar" class="progress-bar-fill h-full rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Live Log Panel -->
+                    <div id="logPanel" class="flex-1 bg-slate-900/80 rounded-lg p-4 overflow-y-auto font-mono text-xs text-slate-400 border border-slate-700/50 space-y-1 max-h-[400px]">
+                        <div class="log-entry text-slate-500">Aguardando eventos do servidor...</div>
+                    </div>
                 </div>
 
+                <!-- Results State -->
                 <div id="dataState" class="hidden h-full overflow-y-auto pr-2 pb-4">
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-xl font-bold text-white">Resultados da Execução</h2>
@@ -75,49 +100,174 @@
     </div>
 
     <script>
-        async function runBenchmark() {
-            const btn = document.getElementById('runBtn');
-            const mode = document.getElementById('mode').value;
-            
+        let eventSource = null;
+
+        function setUIState(state) {
             document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('progressState').classList.add('hidden');
             document.getElementById('dataState').classList.add('hidden');
-            document.getElementById('loadingState').classList.remove('hidden');
-            btn.disabled = true;
-            btn.classList.add('opacity-50', 'cursor-not-allowed');
-            
-            try {
-                const response = await fetch('/api/run', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mode: mode, requests: 5000, timed_duration: 10, concurrencies: "1, 10, 50, 100, 500" })
-                });
+            if (state === 'empty') document.getElementById('emptyState').classList.remove('hidden');
+            if (state === 'progress') document.getElementById('progressState').classList.remove('hidden');
+            if (state === 'data') document.getElementById('dataState').classList.remove('hidden');
+        }
 
-                const data = await response.json();
-                
-                if(!response.ok) {
-                    alert("Erro interno: " + data.error);
-                    throw new Error("API falhou");
-                }
-
-                renderResults(data);
-                
-                document.getElementById('loadingState').classList.add('hidden');
-                document.getElementById('dataState').classList.remove('hidden');
-                
-            } catch (error) {
-                console.error(error);
-                document.getElementById('loadingState').classList.add('hidden');
-                document.getElementById('emptyState').classList.remove('hidden');
-            } finally {
-                btn.disabled = false;
+        function setButtonEnabled(enabled) {
+            const btn = document.getElementById('runBtn');
+            btn.disabled = !enabled;
+            if (enabled) {
                 btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
             }
+        }
+
+        function updateProgress(step, totalSteps, label) {
+            const pct = totalSteps > 0 ? Math.round((step / totalSteps) * 100) : 0;
+            document.getElementById('progressBar').style.width = pct + '%';
+            document.getElementById('progressPercent').innerText = pct + '%';
+            if (label) document.getElementById('progressLabel').innerText = label;
+        }
+
+        function addLog(text, color) {
+            const panel = document.getElementById('logPanel');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + (color || 'text-slate-400');
+            entry.innerText = text;
+            panel.appendChild(entry);
+            panel.scrollTop = panel.scrollHeight;
+        }
+
+        function formatProgressEvent(data) {
+            const evt = data.event;
+            switch (evt) {
+                case 'start':
+                    return { label: 'Iniciando benchmark...', log: `🚀 Benchmark iniciado — modo: ${data.mode}, ${data.total_steps} steps`, color: 'text-emerald-400' };
+                case 'warmup_start':
+                    return { label: 'Warmup dos endpoints...', log: '🔥 Warmup iniciado', color: 'text-amber-400' };
+                case 'warmup_endpoint':
+                    return { log: `  ↳ Warmup: ${data.endpoint}`, color: 'text-slate-500' };
+                case 'warmup_done':
+                    return { log: '  ✅ Warmup concluído', color: 'text-emerald-400' };
+                case 'phase_start':
+                    const phaseLabel = data.phase === 'requests' ? `Fase 1: Requests Fixas (${data.total_requests || ''})` : `Fase 2: Timed (${data.timed_duration || ''}s)`;
+                    return { label: phaseLabel, log: `\n📊 ${phaseLabel}`, color: 'text-blue-400' };
+                case 'endpoint_start':
+                    return { label: `c=${data.concurrency} → ${data.endpoint}`, log: `  → [c=${data.concurrency}] ${data.endpoint}...`, color: 'text-slate-300' };
+                case 'endpoint_done':
+                    return { log: `    ✓ ${data.rps} req/s · ${data.latency_ms}ms avg`, color: 'text-emerald-300' };
+                case 'phase_complete':
+                    return { log: `\n✅ Fase ${data.phase} concluída`, color: 'text-emerald-400' };
+                case 'done':
+                    return { label: 'Benchmark completo!', log: '\n🏁 Benchmark finalizado com sucesso!', color: 'text-emerald-400' };
+                default:
+                    return { log: JSON.stringify(data), color: 'text-slate-500' };
+            }
+        }
+
+        function runBenchmark() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+
+            const mode = document.getElementById('mode').value;
+
+            // Reset UI
+            setUIState('progress');
+            setButtonEnabled(false);
+            document.getElementById('logPanel').innerHTML = '';
+            updateProgress(0, 1, 'Conectando ao servidor...');
+
+            const params = new URLSearchParams({
+                mode: mode,
+                requests: 5000,
+                timed_duration: 10,
+                concurrencies: '1,10,50,100,500'
+            });
+
+            eventSource = new EventSource(`/api/run-stream?${params}`);
+            let totalSteps = 1;
+
+            eventSource.addEventListener('progress', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.total_steps) totalSteps = data.total_steps;
+
+                    const step = data.step || 0;
+                    const fmt = formatProgressEvent(data);
+
+                    if (fmt.label) updateProgress(step, totalSteps, fmt.label);
+                    else updateProgress(step, totalSteps);
+
+                    if (fmt.log) addLog(fmt.log, fmt.color);
+                } catch (err) {
+                    console.error('Parse error:', err);
+                }
+            });
+
+            eventSource.addEventListener('result', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    renderResults(data);
+                    setUIState('data');
+                } catch (err) {
+                    console.error('Result parse error:', err);
+                }
+                eventSource.close();
+                eventSource = null;
+                setButtonEnabled(true);
+            });
+
+            // Modo "all" retorna dois resultados separados
+            eventSource.addEventListener('result_requests', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    renderResults(data);
+                } catch (err) {
+                    console.error('Result parse error:', err);
+                }
+            });
+
+            eventSource.addEventListener('result_timed', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    renderResults(data);
+                    setUIState('data');
+                } catch (err) {
+                    console.error('Result parse error:', err);
+                }
+                eventSource.close();
+                eventSource = null;
+                setButtonEnabled(true);
+            });
+
+            eventSource.addEventListener('error', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    addLog(`❌ Erro: ${data.error}`, 'text-red-400');
+                } catch (_) {
+                    addLog('❌ Conexão perdida com o servidor', 'text-red-400');
+                }
+                eventSource.close();
+                eventSource = null;
+                setButtonEnabled(true);
+            });
+
+            eventSource.onerror = () => {
+                // EventSource's built-in error — stream ended or network issue
+                // Only handle if we haven't already received result
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                    setButtonEnabled(true);
+                }
+            };
         }
 
         function renderResults(data) {
             document.getElementById('timestampBadge').innerText = data.timestamp;
             const container = document.getElementById('dynamicCards');
-            container.innerHTML = ''; // limpar velhos
+            container.innerHTML = '';
 
             const results = data.results;
             const concurrencies = data.config.concurrency_levels;
