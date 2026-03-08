@@ -11,7 +11,18 @@
         <version>3.5.6</version>
         <relativePath/> 
     </parent>
-    <!-- Jetty: Spring Boot 3.5.6 já gerencia Jetty 12.0.x, compatível com Javalin 6.5.0 -->
+    <dependencyManagement>
+        <dependencies>
+            <!-- Javalin 6.x requer Jetty 11 — sobrescreve o BOM do Spring Boot 3.5.6 (que traz 12.x) -->
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-bom</artifactId>
+                <version>11.0.24</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
     <dependencies>
         
     
@@ -200,6 +211,11 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
             <!--<version>2.19.0</version>-->
+        </dependency>
+        <dependency>
+            <groupId>com.lmax</groupId>
+            <artifactId>disruptor</artifactId>
+            <version>4.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
