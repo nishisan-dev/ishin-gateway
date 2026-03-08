@@ -19,6 +19,7 @@ package dev.nishisan.operation.inventory.adapter.observabitliy.wrappers;
 
 import brave.Span;
 import brave.Tracer;
+import brave.Tracing;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -30,15 +31,30 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TracerWrapper {
 
     private final Tracer currentTracer;
+    private final Tracing tracing;
     private SpanWrapper currentSpan;
     private Map<String, SpanWrapper> allSpans = new ConcurrentHashMap<>();
 
+    /**
+     * @deprecated Usar {@link #TracerWrapper(Tracer, Tracing)} para suportar context propagation.
+     */
+    @Deprecated
     public TracerWrapper(Tracer currentTracer) {
         this.currentTracer = currentTracer;
+        this.tracing = null;
+    }
+
+    public TracerWrapper(Tracer currentTracer, Tracing tracing) {
+        this.currentTracer = currentTracer;
+        this.tracing = tracing;
+    }
+
+    public Tracing getTracing() {
+        return tracing;
     }
 
     public void addSpan(SpanWrapper span) {
-        if (this.allSpans.containsKey(span.getName())) {
+        if (!this.allSpans.containsKey(span.getName())) {
             this.allSpans.put(span.getName(), span);
         }
     }
@@ -100,6 +116,6 @@ public class TracerWrapper {
     }
 
     public String getTraceId() {
-        return this.currentSpan.getSpan().context().spanIdString();
+        return this.currentSpan.getSpan().context().traceIdString();
     }
 }
