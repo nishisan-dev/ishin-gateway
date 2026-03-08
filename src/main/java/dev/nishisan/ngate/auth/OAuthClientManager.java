@@ -192,8 +192,31 @@ public class OAuthClientManager implements ITokenProvider {
         } else {
             logger.warn("Token Not Found:[{}] Will Request a New One", ssoName);
         }
+
         //
-        // Fluxo Normal
+        // Cluster: antes de ir ao IdP, verificar se outra instância já tem um token válido
+        //
+        if (distributedTokenMap != null) {
+            try {
+                SerializableTokenData shared = distributedTokenMap.get(ssoName).orElse(null);
+                if (shared != null && !isTokenExpired(shared)) {
+                    TokenResponse response = toTokenResponse(shared);
+                    OauthServerClientConfiguration config = configuredSso.get(ssoName);
+                    if (config != null) {
+                        this.currentTokens.put(ssoName, new AuthToken(
+                                response, config, ssoName,
+                                shared.lastTimeTokenRefreshed(), shared.expiresIn()));
+                        logger.info("Token [{}] loaded from cluster DistributedMap — skipping IdP login", ssoName);
+                        return response;
+                    }
+                }
+            } catch (Exception ex) {
+                logger.warn("Failed to read token [{}] from DistributedMap — falling back to IdP login", ssoName, ex);
+            }
+        }
+
+        //
+        // Fluxo Normal — login direto no IdP
         //
         try {
             OauthServerClientConfiguration oauthServerClientConfiguration = configuredSso.get(ssoName);
@@ -264,13 +287,14 @@ public class OAuthClientManager implements ITokenProvider {
             cal.add(Calendar.SECOND, response.getExpiresInSeconds().intValue());
             logger.debug("Token [{}] Created New Expiration AT: [{}]", oauthServerClientConfiguration.getSsoName(), cal.getTime());
             this.currentTokens.put(oauthServerClientConfiguration.getSsoName(), new AuthToken(response, oauthServerClientConfiguration, oauthServerClientConfiguration.getSsoName(), new Date(), cal.getTime()));
+            publishTokenToCluster(oauthServerClientConfiguration.getSsoName(), response, new Date(), cal.getTime());
         } else {
             Calendar cal = Calendar.getInstance();
             cal.setTime(new Date());
             cal.add(Calendar.SECOND, response.getExpiresInSeconds().intValue());
             logger.debug("Token [{}] Renewed New Expiration AT: [{}]", oauthServerClientConfiguration.getSsoName(), cal.getTime());
             this.currentTokens.replace(oauthServerClientConfiguration.getSsoName(), new AuthToken(response, oauthServerClientConfiguration, oauthServerClientConfiguration.getSsoName(), new Date(), cal.getTime()));
-
+            publishTokenToCluster(oauthServerClientConfiguration.getSsoName(), response, new Date(), cal.getTime());
         }
 
         return response;
@@ -313,6 +337,8 @@ public class OAuthClientManager implements ITokenProvider {
         cal.add(Calendar.SECOND, response.getExpiresInSeconds().intValue());
         previousToken.setExpiresIn(cal.getTime());
         previousToken.setLastTimeTokenRefreshed(new Date());
+        publishTokenToCluster(previousToken.getOauthName(), response,
+                previousToken.getLastTimeTokenRefreshed(), previousToken.getExpiresIn());
         return response;
     }
 
@@ -387,5 +413,56 @@ public class OAuthClientManager implements ITokenProvider {
                 }
             }
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Cluster Token Sharing — helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Publica um token no DistributedMap para outras instâncias do cluster.
+     * No-op se cluster mode não está ativo.
+     */
+    private void publishTokenToCluster(String ssoName, TokenResponse response,
+                                       Date lastRefreshed, Date expiresIn) {
+        if (distributedTokenMap != null) {
+            try {
+                SerializableTokenData data = new SerializableTokenData(
+                        response.getAccessToken(),
+                        response.getRefreshToken(),
+                        response.getExpiresInSeconds(),
+                        response.getTokenType(),
+                        response.getScope(),
+                        ssoName,
+                        lastRefreshed,
+                        expiresIn
+                );
+                distributedTokenMap.put(ssoName, data);
+                logger.debug("Token [{}] published to cluster DistributedMap", ssoName);
+            } catch (Exception ex) {
+                logger.warn("Failed to publish token [{}] to DistributedMap — local-only", ssoName, ex);
+            }
+        }
+    }
+
+    /**
+     * Verifica se um token do DistributedMap já expirou.
+     */
+    private boolean isTokenExpired(SerializableTokenData data) {
+        if (data.expiresIn() == null) return true;
+        return new Date().after(data.expiresIn());
+    }
+
+    /**
+     * Reconstrói um TokenResponse a partir de SerializableTokenData.
+     */
+    private TokenResponse toTokenResponse(SerializableTokenData data) {
+        TokenResponse response = new TokenResponse();
+        response.setAccessToken(data.accessToken());
+        response.setRefreshToken(data.refreshToken());
+        response.setExpiresInSeconds(data.expiresInSeconds());
+        response.setTokenType(data.tokenType());
+        response.setScope(data.scope());
+        return response;
     }
 }
