@@ -38,6 +38,7 @@ import groovy.util.ResourceException;
 import groovy.util.ScriptException;
 import io.javalin.Javalin;
 import io.javalin.http.HandlerType;
+import io.javalin.router.JavalinDefaultRoutingApi;
 import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -84,7 +85,7 @@ public class EndpointWrapper {
      * @param listener
      * @param listenerConfig
      */
-    public void addServiceListener(String name, Javalin listener, EndPointListenersConfiguration listenerConfig) {
+    public void addServiceListener(String name, Javalin listener, JavalinDefaultRoutingApi routes, EndPointListenersConfiguration listenerConfig) {
         this.listeners.put(name, listener);
         this.proxyManager.init();
         try {
@@ -117,7 +118,7 @@ public class EndpointWrapper {
                     HandlerType handlerType = methodMapping.get(urlContext.getMethod().toUpperCase());
                     if (handlerType != null) {
 
-                        listener.addHttpHandler(handlerType, urlContext.getContext(), ctx -> {
+                        routes.addHttpHandler(handlerType, urlContext.getContext(), ctx -> {
                             logger.debug("---------------------------------------------------------------------");
                             TracerWrapper traceWrapper = new TracerWrapper(tracer, tracing);
                             CustomContextWrapper customCtx = new CustomContextWrapper(ctx, contextName, urlContext, traceWrapper);
@@ -201,7 +202,7 @@ public class EndpointWrapper {
                     } else if ("ANY".equalsIgnoreCase(urlContext.getMethod())) {
 
                         methodMapping.values().forEach(type
-                                -> listener.addHttpHandler(type, urlContext.getContext(), ctx -> {
+                                -> routes.addHttpHandler(type, urlContext.getContext(), ctx -> {
                                     logger.debug("---------------------------------------------------------------------");
                                     TracerWrapper traceWrapper = new TracerWrapper(tracer, tracing);
                                     CustomContextWrapper customCtx = new CustomContextWrapper(ctx, contextName, urlContext, traceWrapper);
