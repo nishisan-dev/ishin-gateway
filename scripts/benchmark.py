@@ -5,6 +5,8 @@ Usa Apache Bench (ab) para medir:
   - Baseline: nginx estático direto (porta 3080)
   - Proxy:    adapter sem auth (porta 9091)
 Calcula o overhead do adapter por comparação.
+
+Emite linhas PROGRESS:{json} para integração com SSE na UI.
 """
 
 import subprocess
@@ -30,6 +32,15 @@ TOTAL_REQUESTS = 5000
 CONCURRENCY_LEVELS = [1, 10, 50, 100, 500]
 WARMUP_REQUESTS = 50
 TIMED_DURATION = 10  # segundos por nível de concorrência
+
+
+# ─── Progresso ────────────────────────────────────────────────────────────────
+
+def emit_progress(event, **kwargs):
+    """Emite um evento de progresso como JSON-line no stdout."""
+    data = {"event": event, **kwargs}
+    print(f"PROGRESS:{json.dumps(data)}", flush=True)
+
 
 # ─── Parser do output do ab ──────────────────────────────────────────────────
 
@@ -232,6 +243,25 @@ def print_report(results, mode="requests"):
     print()
 
 
+# ─── Cálculo de total de steps ───────────────────────────────────────────────
+
+def count_total_steps(benchmark_mode):
+    """Calcula o total de steps para a barra de progresso da UI."""
+    endpoints_count = len(ENDPOINTS)
+    concurrencies_count = len(CONCURRENCY_LEVELS)
+
+    total = 0
+    # Warmup: 1 step por endpoint
+    total += endpoints_count
+    # Fase requests: 1 step por endpoint * concorrência
+    if benchmark_mode in ["all", "requests"]:
+        total += endpoints_count * concurrencies_count
+    # Fase timed: 1 step por endpoint * concorrência
+    if benchmark_mode in ["all", "timed"]:
+        total += endpoints_count * concurrencies_count
+    return total
+
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 def main():
@@ -241,6 +271,13 @@ def main():
     except FileNotFoundError:
         print("❌ Apache Bench (ab) não encontrado. Instale: sudo apt install apache2-utils")
         sys.exit(1)
+
+    benchmark_mode = os.environ.get("BENCHMARK_MODE", "all")
+
+    total_steps = count_total_steps(benchmark_mode)
+    current_step = 0
+
+    emit_progress("start", total_steps=total_steps, mode=benchmark_mode)
 
     # Verificar conectividade
     print("\n🔍 Verificando conectividade...")
@@ -253,7 +290,6 @@ def main():
                 print(f"  ✅ {name}: OK")
             else:
                 print(f"  ❌ {name}: HTTP {code}")
-                # Não saímos se o javalin/nginx proxies não estiverem prontos no startup imediatamente
         except Exception as e:
             print(f"  ❌ {name}: {e}")
 
@@ -261,48 +297,103 @@ def main():
 
     # Warmup
     print(f"\n🔥 Warmup ({WARMUP_REQUESTS} requests em cada endpoint)...")
+    emit_progress("warmup_start")
     for target_id, target_name, target_url in ENDPOINTS:
+        current_step += 1
+        emit_progress("warmup_endpoint", endpoint=target_name, step=current_step, total_steps=total_steps)
         run_ab(target_url, WARMUP_REQUESTS, 1)
+    emit_progress("warmup_done", step=current_step, total_steps=total_steps)
     print("  ✅ Warmup concluído")
 
-    # ── Fase 1: Benchmark por contagem de requests ────────────────────────
-    print(f"\n{'='*78}")
-    print(f"  FASE 1: BENCHMARK POR REQUESTS ({TOTAL_REQUESTS} requests)")
-    print(f"{'='*78}")
+    if benchmark_mode in ["all", "requests"]:
+        # ── Fase 1: Benchmark por contagem de requests ────────────────────────
+        print(f"\n{'='*78}")
+        print(f"  FASE 1: BENCHMARK POR REQUESTS ({TOTAL_REQUESTS} requests)")
+        print(f"{'='*78}")
 
-    for concurrency in CONCURRENCY_LEVELS:
-        print(f"\n📊 Benchmark com concorrência={concurrency}, requests={TOTAL_REQUESTS}")
+        emit_progress("phase_start", phase="requests", total_requests=TOTAL_REQUESTS)
 
-        for target_id, target_name, target_url in ENDPOINTS:
-            print(f"  → {target_name}...")
-            output = run_ab(target_url, TOTAL_REQUESTS, concurrency)
-            metrics = parse_ab_output(output)
-            if metrics:
-                results[(target_id, concurrency)] = metrics
-                print(f"    {metrics.get('rps', 0):.1f} req/s, {metrics.get('time_per_request', 0):.2f}ms avg")
+        for concurrency in CONCURRENCY_LEVELS:
+            print(f"\n📊 Benchmark com concorrência={concurrency}, requests={TOTAL_REQUESTS}")
 
-    print_report(results, mode="requests")
+            for target_id, target_name, target_url in ENDPOINTS:
+                current_step += 1
+                emit_progress("endpoint_start",
+                              phase="requests",
+                              endpoint=target_name,
+                              endpoint_id=target_id,
+                              concurrency=concurrency,
+                              step=current_step,
+                              total_steps=total_steps)
 
-    # ── Fase 2: Benchmark por tempo ──────────────────────────────────────
-    print(f"\n{'='*78}")
-    print(f"  FASE 2: BENCHMARK POR TEMPO ({TIMED_DURATION}s por cenário)")
-    print(f"{'='*78}")
+                print(f"  → {target_name}...")
+                output = run_ab(target_url, TOTAL_REQUESTS, concurrency)
+                metrics = parse_ab_output(output)
+                if metrics:
+                    results[(target_id, concurrency)] = metrics
+                    rps = metrics.get('rps', 0)
+                    latency = metrics.get('time_per_request', 0)
+                    print(f"    {rps:.1f} req/s, {latency:.2f}ms avg")
+                    emit_progress("endpoint_done",
+                                  phase="requests",
+                                  endpoint=target_name,
+                                  endpoint_id=target_id,
+                                  concurrency=concurrency,
+                                  rps=round(rps, 1),
+                                  latency_ms=round(latency, 2),
+                                  step=current_step,
+                                  total_steps=total_steps)
 
-    timed_results = {}
+        emit_progress("phase_complete", phase="requests", step=current_step, total_steps=total_steps)
+        print_report(results, mode="requests")
 
-    for concurrency in CONCURRENCY_LEVELS:
-        print(f"\n⏱  Benchmark com concorrência={concurrency}, duração={TIMED_DURATION}s")
+    if benchmark_mode in ["all", "timed"]:
+        # ── Fase 2: Benchmark por tempo ──────────────────────────────────────
+        print(f"\n{'='*78}")
+        print(f"  FASE 2: BENCHMARK POR TEMPO ({TIMED_DURATION}s por cenário)")
+        print(f"{'='*78}")
 
-        for target_id, target_name, target_url in ENDPOINTS:
-            print(f"  → {target_name}...")
-            output = run_ab_timed(target_url, TIMED_DURATION, concurrency)
-            metrics = parse_ab_output(output)
-            if metrics:
-                timed_results[(target_id, concurrency)] = metrics
-                total = int(metrics.get('complete_requests', 0))
-                print(f"    {metrics.get('rps', 0):.1f} req/s, {metrics.get('time_per_request', 0):.2f}ms avg, {total} total reqs")
+        emit_progress("phase_start", phase="timed", timed_duration=TIMED_DURATION)
 
-    print_report(timed_results, mode="timed")
+        timed_results = {}
+
+        for concurrency in CONCURRENCY_LEVELS:
+            print(f"\n⏱  Benchmark com concorrência={concurrency}, duração={TIMED_DURATION}s")
+
+            for target_id, target_name, target_url in ENDPOINTS:
+                current_step += 1
+                emit_progress("endpoint_start",
+                              phase="timed",
+                              endpoint=target_name,
+                              endpoint_id=target_id,
+                              concurrency=concurrency,
+                              step=current_step,
+                              total_steps=total_steps)
+
+                print(f"  → {target_name}...")
+                output = run_ab_timed(target_url, TIMED_DURATION, concurrency)
+                metrics = parse_ab_output(output)
+                if metrics:
+                    timed_results[(target_id, concurrency)] = metrics
+                    total = int(metrics.get('complete_requests', 0))
+                    rps = metrics.get('rps', 0)
+                    latency = metrics.get('time_per_request', 0)
+                    print(f"    {rps:.1f} req/s, {latency:.2f}ms avg, {total} total reqs")
+                    emit_progress("endpoint_done",
+                                  phase="timed",
+                                  endpoint=target_name,
+                                  endpoint_id=target_id,
+                                  concurrency=concurrency,
+                                  rps=round(rps, 1),
+                                  latency_ms=round(latency, 2),
+                                  total_requests=total,
+                                  step=current_step,
+                                  total_steps=total_steps)
+
+        emit_progress("phase_complete", phase="timed", step=current_step, total_steps=total_steps)
+        print_report(timed_results, mode="timed")
+
+    emit_progress("done", step=current_step, total_steps=total_steps)
 
 
 if __name__ == "__main__":
