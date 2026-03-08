@@ -113,10 +113,70 @@ Resultado esperado: `200` com JSON contendo `"source":"static-backend"`.
 - Procure pelo serviço `http` (nome do listener do adapter).
 - Compare traces da porta `9090` (com auth) vs `9091` (sem auth, upstream estático) para isolar o overhead do adapter.
 
+
+## Profiles
+
+O ambiente suporta dois profiles via Docker Compose:
+
+### Dev (padrão)
+
+Log level `DEBUG`, tracing habilitado (Zipkin).
+
+```bash
+docker compose up -d
+```
+
+### Bench (prod-like)
+
+Log level `INFO`, tracing **desabilitado** — simula produção para benchmark realista.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.bench.yml up -d
+```
+
+| Diferença | Dev | Bench |
+|-----------|-----|-------|
+| Log level | `DEBUG` | `INFO` |
+| Tracing (Zipkin) | ✅ Habilitado | ❌ Desabilitado |
+| Spring profile | `dev` | `bench` |
+| Env `TRACING_ENABLED` | `true` (default) | `false` |
+
+## Benchmark
+
+O script `scripts/benchmark.py` usa Apache Bench (`ab`) para medir o overhead do adapter.
+
+### Pré-requisito
+
+```bash
+sudo apt install apache2-utils  # instala o ab
+```
+
+### Executar
+
+```bash
+python3 scripts/benchmark.py
+```
+
+O script automaticamente:
+1. Faz warmup (50 requests em cada endpoint)
+2. Roda benchmark com concorrência 1, 10 e 50 (1000 requests cada)
+3. Imprime relatório comparativo com tabela e barras visuais
+4. Salva resultados em `scripts/benchmark_results.json`
+
+### Portas testadas
+
+| Porta | Rota | Descrição |
+|:-----:|------|-----------|
+| `3080` | nginx direto | Baseline (sem proxy) |
+| `9091` | adapter → nginx | Overhead do proxy |
+
 ## Arquivos principais do ambiente local
 
-- `docker-compose.yml`
+- `docker-compose.yml` — Compose principal (profile dev)
+- `docker-compose.bench.yml` — Override bench/prod-like
 - `compose/keycloak/realm-inventory-dev.json`
 - `compose/static-backend/default.conf`
 - `config/adapter.yaml`
+- `scripts/benchmark.py`
+
 
