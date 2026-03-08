@@ -320,8 +320,8 @@ GET /actuator/health      →  Load Balancer
 
 | # | Item | Prioridade | Esforço | Status | Dependência |
 |---|---|---|---|---|---|
-| 4 | NGrid integration (cluster mode) | 🔴 Alta | Alto | ✅ Convergido | Fase 1 completa |
-| 5 | Token OAuth compartilhado (DistributedMap) | 🟡 Média | Médio | ✅ Convergido | Depende de #4 |
+| 4 | NGrid integration (cluster mode) | 🔴 Alta | Alto | ✅ **Implementado** (Sessão 2) | Fase 1 completa |
+| 5 | Token OAuth compartilhado (DistributedMap) | 🟡 Média | Médio | ✅ **Implementado** (Sessão 2) | Depende de #4 |
 | 6 | Rules Deploy (CLI + Bundle + replicação) | 🟡 Média | Médio | ✅ Convergido | Depende de #4 para cluster; funciona standalone sem |
 | 7 | Auth do Admin API (API Key para MVP) | 🟡 Média | Baixo | Pendente | Necessário para #6 |
 
@@ -380,3 +380,49 @@ adb58f0 feat: add health check via Spring Boot Actuator
 ```
 
 **Build:** `mvn clean compile -DskipTests` ✅ (49 classes, 2.4s)
+
+### Sessão 2 — 2026-03-08 — `feature/ngrid-cluster-mode`
+
+**Escopo:** Fase 2 parcial — NGrid integration (item #4) e Token OAuth compartilhado (item #5)
+
+| Item | Descrição | Status |
+|---|---|---|
+| #4 | NGrid integration — `ClusterService` embarca NGridNode, mesh TCP, leader election | ✅ Concluído |
+| #5 | Token OAuth compartilhado — líder faz login/refresh, publica no `DistributedMap` | ✅ Concluído |
+
+**Decisões da sessão:**
+- Cluster mode é **opt-in** via bloco `cluster:` no `adapter.yaml`
+- Sem `cluster:`, n-gate roda 100% standalone (zero impacto)
+- `NGridNode` completo (não `LeaderElectionService` lightweight) — necessário para `DistributedMap`
+- `TokenResponse` (Google) não é `Serializable` → criado `SerializableTokenData` record
+- `TokenRefreshThread` roda apenas no líder; followers leem do `DistributedMap`
+- Porta NGrid default: `7100` (env: `NGATE_CLUSTER_PORT`)
+- Node ID: config → env `NGATE_CLUSTER_NODE_ID` → hostname → UUID random
+- Rules Deploy (CLI + Bundle) ficou para sessão dedicada (escopo separado)
+
+**Arquivos modificados/criados:**
+
+| Arquivo | Alteração |
+|---|---|
+| `pom.xml` | Adicionado `dev.nishisan:nishi-utils:3.1.0` |
+| `ClusterConfiguration.java` | **[NEW]** POJO Jackson para bloco `cluster:` do adapter.yaml |
+| `ServerConfiguration.java` | Adicionado campo `ClusterConfiguration cluster` (nullable) |
+| `ClusterService.java` | **[NEW]** Lifecycle do NGridNode, leadership listeners, DistributedMap |
+| `SerializableTokenData.java` | **[NEW]** Record Serializable para transportar tokens via NGrid |
+| `OAuthClientManager.java` | Leader-only refresh + publish no DistributedMap; followers leem do mapa |
+| `NGateHealthIndicator.java` | Cluster info: `clusterMode`, `isLeader`, `activeMembers`, `clusterNodeId` |
+| `adapter.yaml` | Bloco `cluster:` comentado como exemplo |
+
+**Build:** `mvn clean compile -DskipTests` ✅ (52 classes, 1.8s)
+
+**Commits:**
+
+```
+fdddfe1 docs: add session 2 tracking and implementation plan for NGrid cluster mode
+fad89dc feat: add cluster status to health check (isLeader, activeMembers)
+4f6c580 feat: leader-only OAuth refresh with DistributedMap token sharing
+51a1a30 feat: add ClusterService — NGridNode lifecycle, leadership and DistributedMap
+67c1b7d feat: add cluster configuration support (opt-in via adapter.yaml)
+d54474b feat: add nishi-utils 3.1.0 dependency for NGrid cluster integration
+```
+
