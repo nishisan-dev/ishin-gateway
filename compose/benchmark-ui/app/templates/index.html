@@ -332,8 +332,58 @@
                         </div>`;
                     }
                 });
+
+                // ── Card Comparativo: Javalin vs Nginx ──
+                const nginxData = results[`nginx_proxy_c${c}`];
+                const javalinData = results[`javalin_proxy_c${c}`];
+
+                if (nginxData && javalinData) {
+                    const rpsPct = (((javalinData.rps - nginxData.rps) / nginxData.rps) * 100).toFixed(1);
+                    const latDiff = (javalinData.time_per_request - nginxData.time_per_request).toFixed(2);
+                    const latPct = (((javalinData.time_per_request - nginxData.time_per_request) / nginxData.time_per_request) * 100).toFixed(1);
+                    const p99Diff = ((javalinData.p99 || 0) - (nginxData.p99 || 0)).toFixed(0);
+
+                    // Javalin "ganha" em RPS se rpsPct > 0
+                    const rpsWin = parseFloat(rpsPct) >= 0;
+                    const rpsIcon = rpsWin ? '🚀' : '🐢';
+                    const rpsBadgeColor = rpsWin ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30';
+                    const rpsSign = parseFloat(rpsPct) >= 0 ? '+' : '';
+
+                    // Javalin "ganha" em latência se latDiff < 0 (menor latência)
+                    const latWin = parseFloat(latDiff) <= 0;
+                    const latBadgeColor = latWin ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+                    const latSign = parseFloat(latDiff) >= 0 ? '+' : '';
+
+                    html += `
+                    </div>
+                    <div class="mt-4 bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg p-4 border border-purple-500/20">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-semibold text-slate-200">⚡ Javalin vs Nginx</span>
+                            </div>
+                            <span class="text-xs px-2 py-0.5 rounded border ${rpsBadgeColor}">${rpsIcon} ${rpsSign}${rpsPct}% throughput</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 text-center">
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Throughput</div>
+                                <div class="text-lg font-bold ${rpsWin ? 'text-emerald-400' : 'text-red-400'}">${rpsSign}${rpsPct}%</div>
+                                <div class="text-[10px] text-slate-500">${javalinData.rps.toFixed(0)} vs ${nginxData.rps.toFixed(0)} req/s</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Latência Média</div>
+                                <div class="text-lg font-bold ${latWin ? 'text-emerald-400' : 'text-amber-400'}">${latSign}${latDiff}ms</div>
+                                <div class="text-[10px] text-slate-500">${javalinData.time_per_request.toFixed(2)} vs ${nginxData.time_per_request.toFixed(2)} ms</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">P99 Tail</div>
+                                <div class="text-lg font-bold ${parseInt(p99Diff) <= 0 ? 'text-emerald-400' : 'text-amber-400'}">${parseInt(p99Diff) >= 0 ? '+' : ''}${p99Diff}ms</div>
+                                <div class="text-[10px] text-slate-500">${javalinData.p99 || '—'} vs ${nginxData.p99 || '—'} ms</div>
+                            </div>
+                        </div>
+                    </div>`;
+                }
                 
-                html += `</div></div>`;
+                html += `</div>`;
                 container.innerHTML += html;
             });
         }
