@@ -68,7 +68,7 @@ endpoints:
 
     ruleMapping: "default/Rules.groovy"
     ruleMappingThreads: 1
-    socketTimeout: 3600
+    socketTimeout: 30
 
     # Jetty Thread Pool
     jettyMinThreads: 16
@@ -76,5 +76,9 @@ endpoints:
     jettyIdleTimeout: 120000
 
     # OkHttp Connection Pool
-    connectionPoolSize: 200
+    connectionPoolSize: 256
     connectionPoolKeepAliveMinutes: 5
+
+    # OkHttp Dispatcher
+    dispatcherMaxRequests: 512
+    dispatcherMaxRequestsPerHost: 256

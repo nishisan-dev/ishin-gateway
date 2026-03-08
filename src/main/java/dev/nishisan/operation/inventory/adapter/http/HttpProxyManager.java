@@ -59,6 +59,7 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import okhttp3.ConnectionPool;
+import okhttp3.Dispatcher;
 import okhttp3.Cookie;
 import okhttp3.CookieJar;
 import okhttp3.HttpUrl;
@@ -129,6 +130,9 @@ public class HttpProxyManager {
     // Connection pool compartilhado entre todos os OkHttpClients (configurável via adapter.yaml)
     private final ConnectionPool sharedConnectionPool;
 
+    // Dispatcher compartilhado com Virtual Threads (Java 21)
+    private final Dispatcher sharedDispatcher;
+
     public HttpProxyManager(OAuthClientManager oauthManager, EndPointConfiguration configuration) {
         this.configuration = configuration;
         this.oauthManager = oauthManager;
@@ -136,6 +140,13 @@ public class HttpProxyManager {
                 configuration.getConnectionPoolSize(),
                 configuration.getConnectionPoolKeepAliveMinutes(),
                 TimeUnit.MINUTES);
+        this.sharedDispatcher = new Dispatcher(Executors.newVirtualThreadPerTaskExecutor());
+        this.sharedDispatcher.setMaxRequests(configuration.getDispatcherMaxRequests());
+        this.sharedDispatcher.setMaxRequestsPerHost(configuration.getDispatcherMaxRequestsPerHost());
+        logger.info("OkHttp Dispatcher configured: maxRequests={}, maxRequestsPerHost={}",
+                configuration.getDispatcherMaxRequests(), configuration.getDispatcherMaxRequestsPerHost());
+        logger.info("OkHttp ConnectionPool configured: size={}, keepAlive={}min",
+                configuration.getConnectionPoolSize(), configuration.getConnectionPoolKeepAliveMinutes());
     }
 
     /**
@@ -218,6 +229,7 @@ public class HttpProxyManager {
                         return chain.proceed(newRequest);
                     }).sslSocketFactory(SHARED_SSL_FACTORY, TRUST_ALL_MANAGER)
                             .hostnameVerifier(TRUST_ALL_HOSTNAMES)
+                            .dispatcher(sharedDispatcher)
                             .connectionPool(sharedConnectionPool)
                             .connectTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
                             .readTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
@@ -253,6 +265,7 @@ public class HttpProxyManager {
                         return chain.proceed(request);
                     }).sslSocketFactory(SHARED_SSL_FACTORY, TRUST_ALL_MANAGER)
                             .hostnameVerifier(TRUST_ALL_HOSTNAMES)
+                            .dispatcher(sharedDispatcher)
                             .connectionPool(sharedConnectionPool)
                             .connectTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
                             .readTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
@@ -299,6 +312,7 @@ public class HttpProxyManager {
                     return chain.proceed(request);
                 }).sslSocketFactory(SHARED_SSL_FACTORY, TRUST_ALL_MANAGER)
                         .hostnameVerifier(TRUST_ALL_HOSTNAMES)
+                        .dispatcher(sharedDispatcher)
                         .connectionPool(sharedConnectionPool)
                         .connectTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)
                         .readTimeout(configuration.getSocketTimeout(), TimeUnit.SECONDS)

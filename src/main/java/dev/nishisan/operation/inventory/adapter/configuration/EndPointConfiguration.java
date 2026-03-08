@@ -30,7 +30,7 @@ public class EndPointConfiguration {
     private Map<String, BackendConfiguration> backends = new ConcurrentHashMap<>();
     private String ruleMapping;
     private Integer ruleMappingThreads = 1;
-    private Integer socketTimeout = 3600;
+    private Integer socketTimeout = 30;
 
     // Jetty Thread Pool
     private Integer jettyMinThreads = 16;
@@ -38,8 +38,12 @@ public class EndPointConfiguration {
     private Integer jettyIdleTimeout = 120000;
 
     // OkHttp Connection Pool
-    private Integer connectionPoolSize = 200;
+    private Integer connectionPoolSize = 256;
     private Integer connectionPoolKeepAliveMinutes = 5;
+
+    // OkHttp Dispatcher
+    private Integer dispatcherMaxRequests = 512;
+    private Integer dispatcherMaxRequestsPerHost = 256;
 
     public String getRuleMapping() {
         return ruleMapping;
@@ -145,6 +149,22 @@ public class EndPointConfiguration {
 
     public void setConnectionPoolKeepAliveMinutes(Integer connectionPoolKeepAliveMinutes) {
         this.connectionPoolKeepAliveMinutes = connectionPoolKeepAliveMinutes;
+    }
+
+    public Integer getDispatcherMaxRequests() {
+        return dispatcherMaxRequests;
+    }
+
+    public void setDispatcherMaxRequests(Integer dispatcherMaxRequests) {
+        this.dispatcherMaxRequests = dispatcherMaxRequests;
+    }
+
+    public Integer getDispatcherMaxRequestsPerHost() {
+        return dispatcherMaxRequestsPerHost;
+    }
+
+    public void setDispatcherMaxRequestsPerHost(Integer dispatcherMaxRequestsPerHost) {
+        this.dispatcherMaxRequestsPerHost = dispatcherMaxRequestsPerHost;
     }
 
 }
