@@ -3,3 +3,4 @@ log/
 .idea/
 *.iml
 *.log
+.m2-local/
