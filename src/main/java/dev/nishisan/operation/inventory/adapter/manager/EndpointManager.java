@@ -59,8 +59,8 @@ public class EndpointManager {
         try {
             this.initGse();
             this.initEndpoints();
-        } catch (IOException ex) {
-            logger.error("Failed To Start System, please check custom gse folder.", ex);
+        } catch (Throwable ex) {
+            logger.error("Failed To Start System, please check configuration and custom gse folder.", ex);
         }
     }
 
