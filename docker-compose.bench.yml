@@ -1,0 +1,15 @@
+# docker-compose.bench.yml
+# Profile prod-like para benchmark: log level INFO, tracing desabilitado
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.bench.yml up -d
+#
+services:
+  inventory-adapter:
+    environment:
+      SPRING_PROFILES_DEFAULT: bench
+      TRACING_ENABLED: "false"
+    command:
+      - /bin/bash
+      - -lc
+      - mvn -DskipTests package && java -Dspring.profiles.active=bench -jar target/inventory-adapter-1.0-SNAPSHOT.jar
