@@ -201,7 +201,7 @@ public class OAuthClientManager implements ITokenProvider {
         passwordTokenRequest.setScopes(oauthServerClientConfiguration.getAuthScopes());
         Map<String, String> headers = new HashMap<>();
         //
-        // Tokens exclusicos da Telefonica
+        // Headers específicos do SSO (app-key / oam)
         //
         if (oauthServerClientConfiguration.getOam()
                 != null && oauthServerClientConfiguration.getAppKey() != null) {
@@ -264,7 +264,7 @@ public class OAuthClientManager implements ITokenProvider {
                         previousToken.getConfiguration().getClientSecret()));
         Map<String, String> headers = new HashMap<>();
         //
-        // Tokens exclusicos da Telefonica
+        // Headers específicos do SSO (app-key / oam)
         //
         if (previousToken.getConfiguration().getOam() != null && previousToken.getConfiguration().getAppKey() != null) {
             headers.put("app-key", previousToken.getConfiguration().getAppKey());

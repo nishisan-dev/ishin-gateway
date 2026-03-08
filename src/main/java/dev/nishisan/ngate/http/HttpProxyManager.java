@@ -198,8 +198,6 @@ public class HttpProxyManager {
                          * adicionar o cabeçaho de autenticação
                          */
                         Request newRequest = original.newBuilder()
-                                // .header("User-Agent", "TELCOSTACK-" +
-                                // backeEndConfiguration.getOauthClientConfig().getSsoName() + " v0.1")
                                 .header("Authorization",
                                         "Bearer " + oauthManager
                                                 .getAccessToken(
@@ -248,11 +246,6 @@ public class HttpProxyManager {
                     OkHttpClient newClient = new OkHttpClient.Builder().addInterceptor((chain) -> {
                         Request original = chain.request();
                         Request request = original.newBuilder()
-                                // .header("Connection", "close")
-                                // .headers(original.headers())
-                                // .addHeader("User-Agent", "TELCOSTACK-" +
-                                // backeEndConfiguration.getOauthClientConfig().getSsoName())
-                                // .method(original.method(), original.body())
                                 .build();
                         logger.debug("Interceptor Called");
                         logger.debug("Calling Backend:[{}]", name);
@@ -296,11 +289,6 @@ public class HttpProxyManager {
                 OkHttpClient newClient = new OkHttpClient.Builder().addInterceptor((chain) -> {
                     Request original = chain.request();
                     Request request = original.newBuilder()
-                            // .header("Connection", "close")
-                            // .headers(original.headers())
-                            // .addHeader("User-Agent", "TELCOSTACK-" +
-                            // backeEndConfiguration.getOauthClientConfig().getSsoName())
-                            // .method(original.method(), original.body())
                             .build();
 
                     logger.debug("Target URL:[{}] Method:[{}]", request.url().uri(), request.method());
@@ -580,10 +568,9 @@ public class HttpProxyManager {
                         }
 
                         /**
-                         * Aqui de fato pega a response do OkHTTP e a converte
-                         * para um response do Javalin, por horas está em short
-                         * circuit, nesse ponto é onde devemos inserir a
-                         * implementação para chamada da TMF-639 do Netcompass
+                         * Converte a response do OkHTTP para o response do
+                         * Javalin. Ponto de extensão para transformações
+                         * adicionais na response (e.g. TMF-639).
                          */
                         w.setUpstreamResponse(this.okHttpResponseAdapter.getResponse(res));
                         try {

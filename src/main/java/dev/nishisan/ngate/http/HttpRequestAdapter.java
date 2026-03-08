@@ -40,10 +40,6 @@ public class HttpRequestAdapter {
         RequestBody requestBody = null;
         HttpAdapterServletRequest request = workload.getRequest();
 
-        /**
-         * Add Adapter Headers to upstream
-         */
-//        builder.addHeader("x-netcompass-uid", reqUID);
         try {
             if (request.getBodyAsBytes() != null
                     && request.getBodyAsBytes().length > 0) {
