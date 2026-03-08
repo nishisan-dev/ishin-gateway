@@ -321,7 +321,7 @@ GET /actuator/health      →  Load Balancer
 | # | Item | Prioridade | Esforço | Status | Dependência |
 |---|---|---|---|---|---|
 | 4 | NGrid integration (cluster mode) | 🔴 Alta | Alto | ✅ **Implementado** (Sessão 2) | Fase 1 completa |
-| 5 | Token OAuth compartilhado (DistributedMap) | 🟡 Média | Médio | ✅ **Implementado** (Sessão 2) | Depende de #4 |
+| 5 | Token OAuth compartilhado (DistributedMap) | 🟡 Média | Médio | ⚠️ **Parcial** (Sessão 2→3) | Depende de #4. DistributedMap inicializado; leader-only refresh pendente (revertido no fix do deadlock Sessão 3). |
 | 6 | Rules Deploy (CLI + Bundle + replicação) | 🟡 Média | Médio | ✅ Convergido | Depende de #4 para cluster; funciona standalone sem |
 | 7 | Auth do Admin API (API Key para MVP) | 🟡 Média | Baixo | Pendente | Necessário para #6 |
 
@@ -388,14 +388,14 @@ adb58f0 feat: add health check via Spring Boot Actuator
 | Item | Descrição | Status |
 |---|---|---|
 | #4 | NGrid integration — `ClusterService` embarca NGridNode, mesh TCP, leader election | ✅ Concluído |
-| #5 | Token OAuth compartilhado — líder faz login/refresh, publica no `DistributedMap` | ✅ Concluído |
+| #5 | Token OAuth compartilhado — líder faz login/refresh, publica no `DistributedMap` | ⚠️ Parcial (revertido na Sessão 3) |
 
 **Decisões da sessão:**
 - Cluster mode é **opt-in** via bloco `cluster:` no `adapter.yaml`
 - Sem `cluster:`, n-gate roda 100% standalone (zero impacto)
 - `NGridNode` completo (não `LeaderElectionService` lightweight) — necessário para `DistributedMap`
 - `TokenResponse` (Google) não é `Serializable` → criado `SerializableTokenData` record
-- `TokenRefreshThread` roda apenas no líder; followers leem do `DistributedMap`
+- ~~`TokenRefreshThread` roda apenas no líder; followers leem do `DistributedMap`~~ (revertido na Sessão 3 — ver abaixo)
 - Porta NGrid default: `7100` (env: `NGATE_CLUSTER_PORT`)
 - Node ID: config → env `NGATE_CLUSTER_NODE_ID` → hostname → UUID random
 - Rules Deploy (CLI + Bundle) ficou para sessão dedicada (escopo separado)
@@ -409,7 +409,7 @@ adb58f0 feat: add health check via Spring Boot Actuator
 | `ServerConfiguration.java` | Adicionado campo `ClusterConfiguration cluster` (nullable) |
 | `ClusterService.java` | **[NEW]** Lifecycle do NGridNode, leadership listeners, DistributedMap |
 | `SerializableTokenData.java` | **[NEW]** Record Serializable para transportar tokens via NGrid |
-| `OAuthClientManager.java` | Leader-only refresh + publish no DistributedMap; followers leem do mapa |
+| `OAuthClientManager.java` | ~~Leader-only refresh + publish no DistributedMap~~ (revertido na Sessão 3 — causava deadlock) |
 | `NGateHealthIndicator.java` | Cluster info: `clusterMode`, `isLeader`, `activeMembers`, `clusterNodeId` |
 | `adapter.yaml` | Bloco `cluster:` comentado como exemplo |
 
@@ -425,4 +425,59 @@ fad89dc feat: add cluster status to health check (isLeader, activeMembers)
 67c1b7d feat: add cluster configuration support (opt-in via adapter.yaml)
 d54474b feat: add nishi-utils 3.1.0 dependency for NGrid cluster integration
 ```
+
+### Sessão 3 — 2026-03-08 — `feature/ngrid-cluster-mode` (fix regressão)
+
+**Escopo:** Fix de regressão crítica — proxy não respondia a requests após mudanças da Sessão 2
+
+| Item | Descrição | Status |
+|---|---|---|
+| Fix | Deadlock de inicialização Spring causado por dependência circular | ✅ Corrigido |
+| #5 | Re-implementar leader-only refresh com abordagem segura | 🔲 Pendente |
+
+**Diagnóstico:**
+- O proxy aceitava TCP (Jetty) mas o handler Javalin **nunca era invocado**
+- Thread dump: 12 Virtual Threads parqueadas em `Continuation.run` desde o startup
+- Sem `BLOCKED`, sem deadlock explícito, sem conflito de classpath
+- **Bisect** confirmou: `main` → HTTP 200 OK; `feature/ngrid-cluster-mode` → hang
+- Isolamento final: apenas adicionar `@Autowired ClusterService` no `OAuthClientManager` causava o hang
+
+**Causa raiz:**
+
+Dependência circular no Spring Context:
+```
+OAuthClientManager →(@Autowired) ClusterService →(@Autowired) ConfigurationManager →(@Autowired) OAuthClientManager
+```
+Mesmo com `@Lazy`, o Spring não resolvia o ciclo corretamente durante a criação dos beans, causando um **deadlock silencioso** na inicialização — o Jetty subia, mas o Virtual Thread executor do Javalin nunca recebia o contexto pronto.
+
+**Fix aplicado:**
+- `OAuthClientManager`: removido `@Autowired ClusterService`, substituído por `applicationContext.getBean(ClusterService.class)` no `@EventListener(ApplicationReadyEvent.class)` — roda **após** todos os beans estarem criados
+- `ClusterService`: removido `@Lazy` do `ConfigurationManager` (agora desnecessário)
+- `OAuthClientManager` restaurado à lógica standalone original (100% idêntico à `main`), com apenas inicialização do `distributedTokenMap` adicionada
+
+**Impacto no item #5:**
+- O `DistributedMap` é **inicializado** corretamente no startup (quando cluster mode ativo)
+- A lógica leader-only refresh + publish/read do DistributedMap **ainda não foi reimplementada** — precisa ser feita sem `synchronized` (incompatível com Virtual Threads) e sem `@Autowired` direto
+
+**Arquivos modificados:**
+
+| Arquivo | Alteração |
+|---|---|
+| `OAuthClientManager.java` | Restaurado ao original da `main` + lookup de `ClusterService` via `ApplicationContext` |
+| `ClusterService.java` | Removido `@Lazy` do `ConfigurationManager` |
+| `docker-compose.yml` | Mount do `settings.xml` para GitHub Packages |
+| `docker-compose.bench.yml` | Flag `-s` para Maven settings |
+
+**Commits:**
+
+```
+5515532 fix: resolve Docker build (GitHub Packages repo, settings mount, circular dep)
+61b661c fix: add -s settings flag to bench compose for GitHub Packages auth
+7b7583a fix: resolve deadlock de inicialização Spring — substituir @Autowired por ApplicationContext lookup
+```
+
+**Validação:** `curl http://localhost:9091/` → **HTTP 200 OK** ✅
+
+**Lição aprendida:**
+> Em projetos com Virtual Threads (Javalin/Loom) + Spring Boot, dependências circulares entre beans `@Service` causam deadlocks silenciosos — o servidor sobe mas nunca processa requests. Usar `ApplicationContext.getBean()` no `@EventListener(ApplicationReadyEvent)` é a forma segura de quebrar o ciclo.
 
