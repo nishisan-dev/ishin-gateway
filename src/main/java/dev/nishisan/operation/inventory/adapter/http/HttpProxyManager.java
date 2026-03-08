@@ -126,12 +126,16 @@ public class HttpProxyManager {
     private final SynthHttpResponseAdapter okHttpResponseAdapter = new SynthHttpResponseAdapter();
     private Cache<String, OkHttpClient> transientClients;
 
-    // Connection pool compartilhado entre todos os OkHttpClients
-    private final ConnectionPool sharedConnectionPool = new ConnectionPool(50, 5, TimeUnit.MINUTES);
+    // Connection pool compartilhado entre todos os OkHttpClients (configurável via adapter.yaml)
+    private final ConnectionPool sharedConnectionPool;
 
     public HttpProxyManager(OAuthClientManager oauthManager, EndPointConfiguration configuration) {
         this.configuration = configuration;
         this.oauthManager = oauthManager;
+        this.sharedConnectionPool = new ConnectionPool(
+                configuration.getConnectionPoolSize(),
+                configuration.getConnectionPoolKeepAliveMinutes(),
+                TimeUnit.MINUTES);
     }
 
     /**

@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -93,6 +94,18 @@ public class EndpointManager {
 
                         javalinConfig.showJavalinBanner = false;
 
+                        // Thread pool customizado
+                        QueuedThreadPool threadPool = new QueuedThreadPool(
+                                endPoingConfiguration.getJettyMaxThreads(),
+                                endPoingConfiguration.getJettyMinThreads(),
+                                endPoingConfiguration.getJettyIdleTimeout());
+                        threadPool.setName("JettyServerThreadPool");
+                        javalinConfig.jetty.threadPool = threadPool;
+                        logger.info("Jetty ThreadPool configured: min={}, max={}, idleTimeout={}ms",
+                                endPoingConfiguration.getJettyMinThreads(),
+                                endPoingConfiguration.getJettyMaxThreads(),
+                                endPoingConfiguration.getJettyIdleTimeout());
+
 //                        javalinConfig.http.gzipOnlyCompression();
 
 //                        SslContextFactory.Server sslContextFactory = getFactoryFromConfig(listenerConfig.getSslConfiguration());
@@ -136,8 +149,18 @@ public class EndpointManager {
                         // Lidar com as Configurações AQUI
                         //
                         javalinConfig.showJavalinBanner = false;
-//                        javalinConfig.http.gzipOnlyCompression();
 
+                        // Thread pool customizado
+                        QueuedThreadPool threadPool = new QueuedThreadPool(
+                                endPoingConfiguration.getJettyMaxThreads(),
+                                endPoingConfiguration.getJettyMinThreads(),
+                                endPoingConfiguration.getJettyIdleTimeout());
+                        threadPool.setName("JettyServerThreadPool");
+                        javalinConfig.jetty.threadPool = threadPool;
+                        logger.info("Jetty ThreadPool configured: min={}, max={}, idleTimeout={}ms",
+                                endPoingConfiguration.getJettyMinThreads(),
+                                endPoingConfiguration.getJettyMaxThreads(),
+                                endPoingConfiguration.getJettyIdleTimeout());
                     });
                 }
 

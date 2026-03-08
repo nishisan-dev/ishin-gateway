@@ -32,6 +32,15 @@ public class EndPointConfiguration {
     private Integer ruleMappingThreads = 1;
     private Integer socketTimeout = 3600;
 
+    // Jetty Thread Pool
+    private Integer jettyMinThreads = 16;
+    private Integer jettyMaxThreads = 500;
+    private Integer jettyIdleTimeout = 120000;
+
+    // OkHttp Connection Pool
+    private Integer connectionPoolSize = 200;
+    private Integer connectionPoolKeepAliveMinutes = 5;
+
     public String getRuleMapping() {
         return ruleMapping;
     }
@@ -96,6 +105,46 @@ public class EndPointConfiguration {
      */
     public void setSocketTimeout(Integer socketTimeout) {
         this.socketTimeout = socketTimeout;
+    }
+
+    public Integer getJettyMinThreads() {
+        return jettyMinThreads;
+    }
+
+    public void setJettyMinThreads(Integer jettyMinThreads) {
+        this.jettyMinThreads = jettyMinThreads;
+    }
+
+    public Integer getJettyMaxThreads() {
+        return jettyMaxThreads;
+    }
+
+    public void setJettyMaxThreads(Integer jettyMaxThreads) {
+        this.jettyMaxThreads = jettyMaxThreads;
+    }
+
+    public Integer getJettyIdleTimeout() {
+        return jettyIdleTimeout;
+    }
+
+    public void setJettyIdleTimeout(Integer jettyIdleTimeout) {
+        this.jettyIdleTimeout = jettyIdleTimeout;
+    }
+
+    public Integer getConnectionPoolSize() {
+        return connectionPoolSize;
+    }
+
+    public void setConnectionPoolSize(Integer connectionPoolSize) {
+        this.connectionPoolSize = connectionPoolSize;
+    }
+
+    public Integer getConnectionPoolKeepAliveMinutes() {
+        return connectionPoolKeepAliveMinutes;
+    }
+
+    public void setConnectionPoolKeepAliveMinutes(Integer connectionPoolKeepAliveMinutes) {
+        this.connectionPoolKeepAliveMinutes = connectionPoolKeepAliveMinutes;
     }
 
 }
