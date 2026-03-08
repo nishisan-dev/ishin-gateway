@@ -28,7 +28,13 @@ async def run_benchmark_stream(request: Request, mode: str = "requests", request
         env = os.environ.copy()
         env["BASELINE_URL"] = "http://static-backend:8080/"
         env["NGINX_PROXY_URL"] = "http://nginx-proxy:8080/"
-        env["JAVALIN_PROXY_URL"] = "http://n-gate:9091/"
+        env["JAVALIN_PROXY_URL"] = os.environ.get("JAVALIN_PROXY_URL", "http://n-gate:9091/")
+
+        # Cluster endpoints (propagados do docker-compose.cluster.yml)
+        for var in ["CLUSTER_NODE1_URL", "CLUSTER_NODE2_URL", "CLUSTER_NODE3_URL", "CLUSTER_LB_URL"]:
+            val = os.environ.get(var)
+            if val:
+                env[var] = val
         env["BENCHMARK_MODE"] = mode
 
         # Modificar constantes no script via sed

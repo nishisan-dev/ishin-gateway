@@ -1,0 +1,54 @@
+---
+endpoints:
+  default:
+    listeners:
+      http-noauth:
+        listenAddress: "0.0.0.0"
+        listenPort: 9091
+        ssl: false
+        scriptOnly: false
+        defaultScript: "Default.groovy"
+        defaultBackend: "static-backend"
+        secured: false
+        urlContexts:
+          default:
+            context: "/*"
+            method: "ANY"
+            ruleMapping: "default/Rules.groovy"
+
+    backends:
+      static-backend:
+        backendName: "static-backend"
+        xOriginalHost: null
+        endPointUrl: "http://static-backend:8080"
+
+    ruleMapping: "default/Rules.groovy"
+    ruleMappingThreads: 1
+    socketTimeout: 30
+
+    # Jetty Thread Pool
+    jettyMinThreads: 16
+    jettyMaxThreads: 500
+    jettyIdleTimeout: 120000
+
+    # OkHttp Connection Pool
+    connectionPoolSize: 256
+    connectionPoolKeepAliveMinutes: 5
+
+    # OkHttp Dispatcher
+    dispatcherMaxRequests: 512
+    dispatcherMaxRequestsPerHost: 256
+
+# --- Cluster Mode (NGrid) ---
+# nodeId é resolvido automaticamente via env NGATE_CLUSTER_NODE_ID → hostname → UUID
+cluster:
+  enabled: true
+  host: "0.0.0.0"
+  port: 7100
+  clusterName: "ngate-cluster"
+  seeds:
+    - "ngate-node1:7100"
+    - "ngate-node2:7100"
+    - "ngate-node3:7100"
+  replicationFactor: 2
+  dataDirectory: "/tmp/ngrid-data"
