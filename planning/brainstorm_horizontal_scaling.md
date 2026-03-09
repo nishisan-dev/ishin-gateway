@@ -319,8 +319,8 @@ GET /actuator/health      →  Load Balancer
 |---|---|---|---|---|---|
 | 4 | NGrid integration (cluster mode) | 🔴 Alta | Alto | ✅ **Implementado** (Sessão 2) | Fase 1 completa |
 | 5 | Token OAuth compartilhado (DistributedMap) | 🟡 Média | Médio | ✅ **Implementado** (Sessão 3) | Depende de #4. Publish-on-write + read-before-login (sem leader-only). |
-| 6 | Rules Deploy (CLI + Bundle + replicação) | 🟡 Média | Médio | ✅ Convergido | Depende de #4 para cluster; funciona standalone sem |
-| 7 | Auth do Admin API (API Key para MVP) | 🟡 Média | Baixo | Pendente | Necessário para #6 |
+| 6 | Rules Deploy (CLI + Bundle + replicação) | 🟡 Média | Médio | ✅ **Implementado** (Sessão 4) | Depende de #4 para cluster; funciona standalone sem. Testes T8/T9 pendentes. |
+| 7 | Auth do Admin API (API Key para MVP) | 🟡 Média | Baixo | ✅ **Implementado** (Sessão 4) | Testes T10/T11 passando ✅ |
 
 ### Fase 3 — Resiliência & Observabilidade Avançada
 
@@ -498,7 +498,15 @@ Mesmo com `@Lazy`, o Spring não resolvia o ciclo corretamente durante a criaç�
 
 ### Sessão 4 — 9 de Março de 2026
 
-**Itens implementados:** #6 (Rules Deploy) e #7 (Admin API Auth)
+**Escopo:** Fase 2 — #6 (Rules Deploy) e #7 (Admin API Auth) — implementação + testes de integração Docker
+
+**Itens implementados:**
+
+| Item | Descrição | Status |
+|---|---|---|
+| #6 | Rules Deploy (RulesBundle + RulesBundleManager + DistributedMap) | ✅ Implementado |
+| #7 | Admin API Auth (AdminController + X-API-Key + adapter.yaml config) | ✅ Implementado |
+| — | Testes de integração Docker (Testcontainers + 2 nós n-gate em cluster) | ⚠️ Parcial (2/4 passando) |
 
 **Abordagem Rules Deploy:**
 - `RulesBundle` — record Serializable (version, timestamp, deployedBy, scripts map)
@@ -508,17 +516,37 @@ Mesmo com `@Lazy`, o Spring não resolvia o ciclo corretamente durante a criaç�
   - Materializa scripts em tempdir
   - Cria novo `GroovyScriptEngine` e faz swap atômico (volatile)
   - Publica no `DistributedMap("ngate-rules")` para replicação cluster
-  - Listener do DistributedMap para aplicar bundles de peers
+  - Polling thread (5s) verifica versão no DistributedMap para followers
   - Boot: carrega do bundle persistido, fallback para `rules/` dir
 - `HttpProxyManager.gse` agora é `volatile` — swap thread-safe sem pause
 - `EndpointWrapper` e `EndpointManager` expõem métodos para propagação do swap
 
 **Abordagem Admin API Auth:**
 - `AdminApiConfiguration` — POJO para bloco `admin:` do adapter.yaml (enabled, apiKey)
-- `AdminController` — @RestController na porta management (9190/Actuator):
-  - `POST /admin/rules/deploy` — multipart upload de .groovy scripts
+- `AdminController` — @RestController rodando na porta unificada (9190):
+  - `POST /admin/rules/deploy` — multipart upload de `.groovy` scripts
   - `GET /admin/rules/version` — consulta versão do bundle ativo
   - Auth via header `X-API-Key` validado contra `admin.apiKey`
+
+**Descoberta técnica importante: portas Spring Boot + Jetty**
+
+O n-gate usa Undertow como embedded server do Spring Boot, mas o proxy HTTP é servido pelo Javalin (Jetty) na 9091. Quando `management.server.port != server.port`, o Spring Boot cria um child context separado para o Actuator — e `@RestController` **não** é registrado no management context (só Actuator endpoints). Tentativas de `@ManagementContextConfiguration` e `@ControllerEndpoint` falharam porque o management child context não expõe `DispatcherServlet` MVC.
+
+**Solução adotada:** unificar `SERVER_PORT=9190` e `MANAGEMENT_PORT=9190` nos containers de teste, fazendo Actuator + MVC rodarem juntos na mesma porta. Isso permite que o `AdminController` seja acessado na porta 9190 junto com `/actuator/health`.
+
+**Status dos testes de integração (Testcontainers):**
+
+| Teste | Descrição | Status | Detalhes |
+|---|---|---|---|
+| T10 | Auth rejeita request sem API Key | ✅ Passa | — |
+| T11 | Admin API rejeita payload vazio/inválido | ✅ Passa | — |
+| T8 | Standalone rules deploy (POST multipart) | ❌ SocketClosed | POST chega ao controller mas Jetty fecha conexão |
+| T9 | Cluster replication (deploy nó 1 → nó 2 via DistributedMap) | ❌ 400 on deploy | Provavelmente validação interna falhando |
+
+**Hipóteses para T8/T9:**
+1. Configuração multipart do Spring/Jetty (`spring.servlet.multipart.*`) não definida
+2. `AdminController.deploy()` falhando na validação de `admin.enabled` (config ausente no adapter-test-cluster-rules.yaml)
+3. Form field name mismatch no multipart (`scripts` vs outro nome)
 
 **Arquivos novos:**
 
@@ -528,6 +556,9 @@ Mesmo com `@Lazy`, o Spring não resolvia o ciclo corretamente durante a criaç�
 | `RulesBundleManager.java` | Lifecycle manager (deploy, persist, swap, replicate) |
 | `AdminController.java` | REST controller com auth X-API-Key |
 | `AdminApiConfiguration.java` | POJO para config admin |
+| `.dockerignore` | Otimiza build context Docker (exclui `.git`, `target/`, etc.) |
+| `NGridClusterRulesDeployIntegrationTest.java` | 4 testes Docker: auth, validation, deploy, replication |
+| `adapter-test-cluster-rules.yaml` | Config de teste para cluster rules deploy |
 
 **Arquivos modificados:**
 
@@ -539,8 +570,9 @@ Mesmo com `@Lazy`, o Spring não resolvia o ciclo corretamente durante a criaç�
 | `EndpointManager.java` | `getActiveWrappers()` |
 | `ConfigurationManager.java` | `getServerConfiguration()` |
 | `adapter.yaml` | Bloco `admin:` (comentado) |
+| `Dockerfile` | `EXPOSE 18080` adicionado |
 
-**Commits (7 atômicos):**
+**Commits (12 atômicos):**
 
 ```
 000db22 feat: add RulesBundle record for atomic Groovy script deployment
@@ -550,12 +582,13 @@ fb44c3f feat: volatile GSE field and swapGroovyEngine for hot rules deploy
 42d7409 feat: add RulesBundleManager — deploy, persist, swap and replicate rules
 0e5cb5b feat: add AdminController with X-API-Key auth for rules deploy
 d59aef2 docs: add admin API block (commented) to adapter.yaml example
+00be5b1 test: add integration tests for rules deploy (Testcontainers Docker)
+bf6786e fix: AdminController on mgmt port + unified SERVER_PORT=MANAGEMENT_PORT in tests
 ```
 
-**Build:** Bloqueado por `nishi-utils:3.1.0` não disponível no cache Maven local (GitHub Packages sem auth, Nexus externo inacessível). Problema de infra, não de código. Validação pendente quando ambiente estiver configurado.
+**Build:** `mvn clean test-compile -DskipTests` ✅ (BUILD SUCCESS, 9.2s)
 
 **Próximos passos:**
-- Resolver dependência `nishi-utils:3.1.0` (publicar ou instalar localmente)
-- Validar build `mvn clean compile -DskipTests`
-- Implementar testes de integração T8 (standalone rules deploy) e T9 (cluster replication)
-- Considerar backend circuit breaker (#8) e distributed configuration (#9)
+1. Debugar T8 (SocketClosed no multipart deploy) — possível falta de `spring.servlet.multipart.enabled` ou bloco `admin:` ausente no adapter-test-cluster-rules.yaml
+2. Debugar T9 (400 no deploy) — depende do T8
+3. Após testes passando, considerar backend circuit breaker (#8) e distributed configuration (#9)
