@@ -96,3 +96,10 @@ endpoints:
 #     - "10.0.0.3:7100"
 #   replicationFactor: 2
 #   dataDirectory: "./data/ngrid"
+
+# --- Admin API ---
+# Habilita a API administrativa para deploy de rules e consulta de versão.
+# Autenticação via header X-API-Key. Roda na porta de management (9190).
+# admin:
+#   enabled: true
+#   apiKey: "my-secure-api-key"
