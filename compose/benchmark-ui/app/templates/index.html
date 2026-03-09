@@ -271,12 +271,48 @@
             };
         }
 
+        // Mapa de cores e nomes amigáveis por endpoint
+        const ENDPOINT_META = {
+            'baseline':      {name: 'Baseline (nginx direto)', color: 'text-slate-400',   cardColor: 'text-slate-300'},
+            'nginx_proxy':   {name: 'Nginx Proxy',             color: 'text-blue-400',    cardColor: 'text-blue-400'},
+            'javalin_proxy': {name: 'n-gate (standalone)',      color: 'text-purple-400',  cardColor: 'text-purple-400'},
+            'cluster_node1': {name: 'Cluster Node 1',          color: 'text-cyan-400',    cardColor: 'text-cyan-400'},
+            'cluster_node2': {name: 'Cluster Node 2',          color: 'text-teal-400',    cardColor: 'text-teal-400'},
+            'cluster_node3': {name: 'Cluster Node 3',          color: 'text-sky-400',     cardColor: 'text-sky-400'},
+            'cluster_lb':    {name: 'Cluster LB (3 nós)',      color: 'text-amber-400',   cardColor: 'text-amber-400'},
+        };
+
+        function getEndpointMeta(id) {
+            return ENDPOINT_META[id] || {name: id, color: 'text-slate-300', cardColor: 'text-slate-300'};
+        }
+
+        /**
+         * Descobre a lista de endpoints únicos presentes nos resultados.
+         * Retorna array de IDs exc. 'baseline', ordenados por nome.
+         */
+        function discoverEndpoints(results) {
+            const ids = new Set();
+            Object.keys(results).forEach(key => {
+                const match = key.match(/^(.+)_c\d+$/);
+                if (match && match[1] !== 'baseline') {
+                    ids.add(match[1]);
+                }
+            });
+            // Preservar ordem lógica: nginx_proxy, javalin_proxy, cluster_*
+            const order = ['nginx_proxy', 'javalin_proxy', 'cluster_node1', 'cluster_node2', 'cluster_node3', 'cluster_lb'];
+            const sorted = [...ids].sort((a, b) => {
+                const ia = order.indexOf(a), ib = order.indexOf(b);
+                return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+            });
+            return sorted;
+        }
+
         function exportToCSV() {
             if (!lastResultData) return;
             const data = lastResultData;
             const results = data.results;
             const concurrencies = data.config.concurrency_levels;
-            const allEndpoints = ['baseline', 'nginx_proxy', 'javalin_proxy'];
+            const allEndpoints = ['baseline', ...discoverEndpoints(results)];
             const metrics = ['rps', 'time_per_request', 'p50', 'p90', 'p95', 'p99', 'p100', 'failed_requests', 'complete_requests', 'transfer_rate'];
 
             let csv = 'Concurrency,Endpoint,' + metrics.join(',') + '\n';
@@ -303,6 +339,46 @@
             URL.revokeObjectURL(url);
         }
 
+        function renderComparisonCard(aId, bId, aData, bData) {
+            const aMeta = getEndpointMeta(aId);
+            const bMeta = getEndpointMeta(bId);
+            const rpsPct = (((aData.rps - bData.rps) / bData.rps) * 100).toFixed(1);
+            const latDiff = (aData.time_per_request - bData.time_per_request).toFixed(2);
+            const p99Diff = ((aData.p99 || 0) - (bData.p99 || 0)).toFixed(0);
+
+            const rpsWin = parseFloat(rpsPct) >= 0;
+            const rpsIcon = rpsWin ? '🚀' : '🐢';
+            const rpsBadgeColor = rpsWin ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30';
+            const rpsSign = parseFloat(rpsPct) >= 0 ? '+' : '';
+            const latWin = parseFloat(latDiff) <= 0;
+            const latSign = parseFloat(latDiff) >= 0 ? '+' : '';
+
+            return `
+            <div class="mt-4 bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg p-4 border border-purple-500/20">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm font-semibold text-slate-200">⚡ ${aMeta.name} vs ${bMeta.name}</span>
+                    <span class="text-xs px-2 py-0.5 rounded border ${rpsBadgeColor}">${rpsIcon} ${rpsSign}${rpsPct}% throughput</span>
+                </div>
+                <div class="grid grid-cols-3 gap-3 text-center">
+                    <div>
+                        <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Throughput</div>
+                        <div class="text-lg font-bold ${rpsWin ? 'text-emerald-400' : 'text-red-400'}">${rpsSign}${rpsPct}%</div>
+                        <div class="text-[10px] text-slate-500">${aData.rps.toFixed(0)} vs ${bData.rps.toFixed(0)} req/s</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Latência Média</div>
+                        <div class="text-lg font-bold ${latWin ? 'text-emerald-400' : 'text-amber-400'}">${latSign}${latDiff}ms</div>
+                        <div class="text-[10px] text-slate-500">${aData.time_per_request.toFixed(2)} vs ${bData.time_per_request.toFixed(2)} ms</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">P99 Tail</div>
+                        <div class="text-lg font-bold ${parseInt(p99Diff) <= 0 ? 'text-emerald-400' : 'text-amber-400'}">${parseInt(p99Diff) >= 0 ? '+' : ''}${p99Diff}ms</div>
+                        <div class="text-[10px] text-slate-500">${aData.p99 || '—'} vs ${bData.p99 || '—'} ms</div>
+                    </div>
+                </div>
+            </div>`;
+        }
+
         function renderResults(data) {
             lastResultData = data;
             document.getElementById('timestampBadge').innerText = data.timestamp;
@@ -311,21 +387,22 @@
 
             const results = data.results;
             const concurrencies = data.config.concurrency_levels;
-            const endpoints = [
-                {id: 'nginx_proxy', name: 'Nginx Proxy'},
-                {id: 'javalin_proxy', name: 'Javalin Proxy'}
-            ];
+            const endpoints = discoverEndpoints(results).map(id => ({id, ...getEndpointMeta(id)}));
 
             concurrencies.forEach(c => {
+                // Calcular colunas do grid baseado na quantidade de endpoints
+                const gridCols = endpoints.length <= 2 ? 'md:grid-cols-2' :
+                                 endpoints.length <= 3 ? 'md:grid-cols-3' : 'md:grid-cols-3';
+
                 let html = `<div class="bg-slate-800/50 rounded-lg p-5 border border-slate-700/50">
                     <h3 class="text-slate-200 font-bold border-b border-slate-700 pb-2 mb-4">Concurrency Level: <span class="text-emerald-400">${c}</span></h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+                    <div class="grid grid-cols-1 ${gridCols} gap-4">`;
 
                 const baselineKey = `baseline_c${c}`;
                 const baselineData = results[baselineKey];
 
                 if (!baselineData) {
-                    html += `<p class="text-red-400 text-sm col-span-2">Falha global para o baseline.</p></div></div>`;
+                    html += `<p class="text-red-400 text-sm col-span-full">Falha global para o baseline.</p></div></div>`;
                     container.innerHTML += html;
                     return;
                 }
@@ -337,7 +414,6 @@
                     if(proxyData) {
                         const overhead = (proxyData.time_per_request - baselineData.time_per_request).toFixed(2);
                         const rpsDiff = (((proxyData.rps - baselineData.rps) / baselineData.rps) * 100).toFixed(1);
-                        const colorClass = ep.id === 'nginx_proxy' ? 'text-blue-400' : 'text-purple-400';
                         
                         html += `
                         <div class="bg-slate-900/80 rounded p-4 border border-slate-700">
@@ -348,7 +424,7 @@
                             
                             <div class="flex justify-between items-end mb-2">
                                 <div>
-                                    <div class="text-2xl font-bold ${colorClass}">${proxyData.rps.toFixed(0)} <span class="text-xs text-slate-500">req/s</span></div>
+                                    <div class="text-2xl font-bold ${ep.cardColor}">${proxyData.rps.toFixed(0)} <span class="text-xs text-slate-500">req/s</span></div>
                                 </div>
                                 <div class="text-right">
                                     <div class="text-xs ${rpsDiff < 0 ? 'text-red-400' : 'text-emerald-400'}">${rpsDiff}%</div>
@@ -362,7 +438,7 @@
                                 </div>
                                 <div class="flex justify-between">
                                     <span>P99 (Tail):</span>
-                                    <span class="text-slate-200">${proxyData.p99} ms</span>
+                                    <span class="text-slate-200">${proxyData.p99 || '—'} ms</span>
                                 </div>
                                 <div class="flex justify-between border-t border-slate-700 pt-1 mt-1 font-semibold">
                                     <span>Overhead Interno:</span>
@@ -373,54 +449,21 @@
                     }
                 });
 
-                // ── Card Comparativo: Javalin vs Nginx ──
+                html += `</div>`;
+
+                // ── Cards Comparativos ──
+                // Javalin vs Nginx (standalone)
                 const nginxData = results[`nginx_proxy_c${c}`];
                 const javalinData = results[`javalin_proxy_c${c}`];
-
                 if (nginxData && javalinData) {
-                    const rpsPct = (((javalinData.rps - nginxData.rps) / nginxData.rps) * 100).toFixed(1);
-                    const latDiff = (javalinData.time_per_request - nginxData.time_per_request).toFixed(2);
-                    const latPct = (((javalinData.time_per_request - nginxData.time_per_request) / nginxData.time_per_request) * 100).toFixed(1);
-                    const p99Diff = ((javalinData.p99 || 0) - (nginxData.p99 || 0)).toFixed(0);
+                    html += renderComparisonCard('javalin_proxy', 'nginx_proxy', javalinData, nginxData);
+                }
 
-                    // Javalin "ganha" em RPS se rpsPct > 0
-                    const rpsWin = parseFloat(rpsPct) >= 0;
-                    const rpsIcon = rpsWin ? '🚀' : '🐢';
-                    const rpsBadgeColor = rpsWin ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30';
-                    const rpsSign = parseFloat(rpsPct) >= 0 ? '+' : '';
-
-                    // Javalin "ganha" em latência se latDiff < 0 (menor latência)
-                    const latWin = parseFloat(latDiff) <= 0;
-                    const latBadgeColor = latWin ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-                    const latSign = parseFloat(latDiff) >= 0 ? '+' : '';
-
-                    html += `
-                    </div>
-                    <div class="mt-4 bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg p-4 border border-purple-500/20">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm font-semibold text-slate-200">⚡ Javalin vs Nginx</span>
-                            </div>
-                            <span class="text-xs px-2 py-0.5 rounded border ${rpsBadgeColor}">${rpsIcon} ${rpsSign}${rpsPct}% throughput</span>
-                        </div>
-                        <div class="grid grid-cols-3 gap-3 text-center">
-                            <div>
-                                <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Throughput</div>
-                                <div class="text-lg font-bold ${rpsWin ? 'text-emerald-400' : 'text-red-400'}">${rpsSign}${rpsPct}%</div>
-                                <div class="text-[10px] text-slate-500">${javalinData.rps.toFixed(0)} vs ${nginxData.rps.toFixed(0)} req/s</div>
-                            </div>
-                            <div>
-                                <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Latência Média</div>
-                                <div class="text-lg font-bold ${latWin ? 'text-emerald-400' : 'text-amber-400'}">${latSign}${latDiff}ms</div>
-                                <div class="text-[10px] text-slate-500">${javalinData.time_per_request.toFixed(2)} vs ${nginxData.time_per_request.toFixed(2)} ms</div>
-                            </div>
-                            <div>
-                                <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">P99 Tail</div>
-                                <div class="text-lg font-bold ${parseInt(p99Diff) <= 0 ? 'text-emerald-400' : 'text-amber-400'}">${parseInt(p99Diff) >= 0 ? '+' : ''}${p99Diff}ms</div>
-                                <div class="text-[10px] text-slate-500">${javalinData.p99 || '—'} vs ${nginxData.p99 || '—'} ms</div>
-                            </div>
-                        </div>
-                    </div>`;
+                // Cluster LB vs Node 1 (overhead do LB)
+                const lbData = results[`cluster_lb_c${c}`];
+                const node1Data = results[`cluster_node1_c${c}`];
+                if (lbData && node1Data) {
+                    html += renderComparisonCard('cluster_lb', 'cluster_node1', lbData, node1Data);
                 }
                 
                 html += `</div>`;
