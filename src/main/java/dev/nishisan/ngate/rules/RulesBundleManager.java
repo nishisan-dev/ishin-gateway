@@ -35,6 +35,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -48,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *   <li>Materializar scripts em diretório temporário</li>
  *   <li>Criar novo {@link GroovyScriptEngine} e swap atômico</li>
  *   <li>Publicar no {@link DistributedMap} para replicação cluster</li>
- *   <li>Listener do DistributedMap para aplicar bundles de peers</li>
+ *   <li>Polling periódico do DistributedMap para aplicar bundles de peers</li>
  * </ul>
  *
  * @author Lucas Nishimura <lucas.nishimura@gmail.com>
@@ -61,6 +64,7 @@ public class RulesBundleManager {
     private static final String RULES_MAP_NAME = "ngate-rules";
     private static final String RULES_MAP_KEY = "active-bundle";
     private static final String BUNDLE_PERSIST_FILE = "data/rules-bundle.dat";
+    private static final long CLUSTER_POLL_INTERVAL_SECONDS = 5;
 
     @Autowired
     private ApplicationContext applicationContext;
@@ -71,6 +75,7 @@ public class RulesBundleManager {
     private DistributedMap<String, RulesBundle> distributedRulesMap;
     private EndpointManager endpointManager;
     private ClusterService clusterService;
+    private ScheduledExecutorService clusterPollExecutor;
 
     @EventListener(ApplicationReadyEvent.class)
     private void onStartup() {
@@ -107,21 +112,42 @@ public class RulesBundleManager {
                 }
             }
 
-            // Registrar listener para mudanças do DistributedMap (quando outro nó faz deploy)
+            // Iniciar polling thread para detectar bundles publicados por peers
             if (distributedRulesMap != null) {
-                distributedRulesMap.addEntryListener((key, value) -> {
-                    if (RULES_MAP_KEY.equals(key) && value != null) {
-                        RulesBundle current = activeBundle.get();
-                        if (current == null || value.version() > current.version()) {
-                            logger.info("Cluster rules update received — applying bundle v{} from peer",
-                                    value.version());
-                            applyBundleLocally(value);
-                            persistToDisk(value);
-                        }
-                    }
+                this.clusterPollExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "ngate-rules-cluster-poll");
+                    t.setDaemon(true);
+                    return t;
                 });
-                logger.info("DistributedMap listener registered for rules replication");
+                clusterPollExecutor.scheduleWithFixedDelay(
+                        this::pollClusterForUpdates,
+                        CLUSTER_POLL_INTERVAL_SECONDS,
+                        CLUSTER_POLL_INTERVAL_SECONDS,
+                        TimeUnit.SECONDS
+                );
+                logger.info("Cluster rules polling started — interval={}s", CLUSTER_POLL_INTERVAL_SECONDS);
             }
+        }
+    }
+
+    /**
+     * Verifica periodicamente se existe um bundle mais recente no DistributedMap
+     * (publicado por outro nó do cluster).
+     */
+    private void pollClusterForUpdates() {
+        try {
+            RulesBundle fromCluster = distributedRulesMap.get(RULES_MAP_KEY).orElse(null);
+            if (fromCluster != null) {
+                RulesBundle current = activeBundle.get();
+                if (current == null || fromCluster.version() > current.version()) {
+                    logger.info("Cluster rules update detected — applying bundle v{} from peer",
+                            fromCluster.version());
+                    applyBundleLocally(fromCluster);
+                    persistToDisk(fromCluster);
+                }
+            }
+        } catch (Exception ex) {
+            logger.warn("Failed to poll cluster for rules updates", ex);
         }
     }
 
