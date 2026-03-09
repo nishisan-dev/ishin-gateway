@@ -17,5 +17,5 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=builder /build/target/n-gate-1.0-SNAPSHOT.jar app.jar
 COPY --from=builder /build/rules/ rules/
-EXPOSE 9091 9190 7100
+EXPOSE 9091 9190 7100 18080
 ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:+ZGenerational", "-Xms128m", "-Xmx256m", "-jar", "app.jar"]

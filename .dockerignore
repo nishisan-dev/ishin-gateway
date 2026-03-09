@@ -1,0 +1,11 @@
+.git
+.gitignore
+.dockerignore
+target/
+planning/
+docs/
+*.md
+*.iml
+.idea/
+.vscode/
+.gemini/
