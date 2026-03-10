@@ -231,6 +231,7 @@ O script faz warmup, roda testes com concorrência 1/10/50, e gera relatório co
 
 | Documento | Conteúdo |
 |-----------|----------|
+| [Product Overview](docs/product-overview.md) | Visão de produto, capacidades, cenários de configuração, performance |
 | [Arquitetura](docs/architecture.md) | Componentes internos, cluster mode, fluxo de request, modelo de threading |
 | [Configuração](docs/configuration.md) | Referência completa do `adapter.yaml` (cluster, admin, circuit breaker) |
 | [Regras Groovy](docs/groovy_rules.md) | Como escrever regras, API, exemplos práticos |
