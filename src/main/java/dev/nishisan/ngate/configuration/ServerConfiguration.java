@@ -29,6 +29,7 @@ public class ServerConfiguration {
     private Map<String, EndPointConfiguration> endpoints = new ConcurrentHashMap<>();
     private ClusterConfiguration cluster;
     private AdminApiConfiguration admin;
+    private CircuitBreakerConfiguration circuitBreaker;
 
     public Map<String, EndPointConfiguration> getEndpoints() {
         return endpoints;
@@ -52,6 +53,14 @@ public class ServerConfiguration {
 
     public void setAdmin(AdminApiConfiguration admin) {
         this.admin = admin;
+    }
+
+    public CircuitBreakerConfiguration getCircuitBreaker() {
+        return circuitBreaker;
+    }
+
+    public void setCircuitBreaker(CircuitBreakerConfiguration circuitBreaker) {
+        this.circuitBreaker = circuitBreaker;
     }
 
 }
