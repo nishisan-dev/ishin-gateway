@@ -70,4 +70,14 @@ public class EndPointURLContext {
         this.ruleMapping = ruleMapping;
     }
 
+    private RateLimitRefConfiguration rateLimit;
+
+    public RateLimitRefConfiguration getRateLimit() {
+        return rateLimit;
+    }
+
+    public void setRateLimit(RateLimitRefConfiguration rateLimit) {
+        this.rateLimit = rateLimit;
+    }
+
 }

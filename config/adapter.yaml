@@ -115,3 +115,39 @@ endpoints:
 #   permittedCallsInHalfOpenState: 10 # calls permitidos em HALF_OPEN para testar recovery
 #   slowCallDurationThreshold: 5      # segundos — calls mais lentos são considerados "slow"
 #   slowCallRateThreshold: 80         # % de slow calls para abrir o circuito
+
+# --- Rate Limiting ---
+# Controla a taxa de requests por listener, rota e/ou backend.
+# Zonas nomeadas (como nginx limit_req_zone) podem ser referenciadas em qualquer escopo.
+# Modos:
+#   stall  - aguarda um slot livre até o timeout (equivalente a nginx delay)
+#   nowait - rejeita imediatamente com HTTP 429
+#
+# rateLimiting:
+#   enabled: true
+#   defaultMode: "nowait"                # stall | nowait
+#   zones:
+#     api-global:
+#       limitForPeriod: 100              # requests permitidos por período
+#       limitRefreshPeriodSeconds: 1     # janela de refresh (1s = 100 req/s)
+#       timeoutSeconds: 5               # max tempo de espera em modo stall
+#     api-strict:
+#       limitForPeriod: 10
+#       limitRefreshPeriodSeconds: 1
+#       timeoutSeconds: 2
+#
+# Uso por listener (dentro de listeners.<name>):
+#   rateLimit:
+#     zone: "api-global"
+#     mode: "stall"                      # override do defaultMode
+#
+# Uso por rota (dentro de urlContexts.<name>):
+#   rateLimit:
+#     zone: "api-strict"
+#     mode: "nowait"
+#
+# Uso por backend (dentro de backends.<name>):
+#   rateLimit:
+#     zone: "api-global"
+#     mode: "nowait"
+

@@ -35,6 +35,8 @@ import dev.nishisan.ngate.observabitliy.ProxyMetrics;
 import dev.nishisan.ngate.observabitliy.wrappers.SpanWrapper;
 import dev.nishisan.ngate.observabitliy.wrappers.TracerWrapper;
 import dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager;
+import dev.nishisan.ngate.http.ratelimit.RateLimitManager;
+import dev.nishisan.ngate.http.ratelimit.RateLimitResult;
 import groovy.util.GroovyScriptEngine;
 import groovy.util.ResourceException;
 import groovy.util.ScriptException;
@@ -70,16 +72,18 @@ public class EndpointWrapper {
     private final TracerService tracerService;
     private final ProxyMetrics proxyMetrics;
     private final BackendCircuitBreakerManager circuitBreakerManager;
+    private final RateLimitManager rateLimitManager;
     private final SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
 
-    public EndpointWrapper(OAuthClientManager oauthManager, EndPointConfiguration configuration, GroovyScriptEngine gse, TracerService tracerService, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager) {
+    public EndpointWrapper(OAuthClientManager oauthManager, EndPointConfiguration configuration, GroovyScriptEngine gse, TracerService tracerService, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager, RateLimitManager rateLimitManager) {
         this.configuration = configuration;
         this.oauthManager = oauthManager;
-        this.proxyManager = new HttpProxyManager(this.oauthManager, configuration, proxyMetrics, circuitBreakerManager);
+        this.proxyManager = new HttpProxyManager(this.oauthManager, configuration, proxyMetrics, circuitBreakerManager, rateLimitManager);
         this.customGse = gse;
         this.tracerService = tracerService;
         this.proxyMetrics = proxyMetrics;
         this.circuitBreakerManager = circuitBreakerManager;
+        this.rateLimitManager = rateLimitManager;
     }
 
     /**
@@ -149,6 +153,55 @@ public class EndpointWrapper {
                             }
 
                             try {
+                                // ─── Rate Limit: Listener level ───────────────────
+                                if (rateLimitManager.isEnabled() && listenerConfig.getRateLimit() != null) {
+                                    RateLimitResult rlResult = rateLimitManager.acquirePermission(
+                                            "listener:" + name, listenerConfig.getRateLimit());
+                                    rootSpan.tag("rate.limit.listener", rlResult.name());
+                                    if (proxyMetrics != null) {
+                                        proxyMetrics.recordRateLimitEvent("listener",
+                                                listenerConfig.getRateLimit().getZone(), rlResult.name());
+                                    }
+                                    if (rlResult == RateLimitResult.REJECTED) {
+                                        customCtx.status(429);
+                                        customCtx.header("x-rate-limit", "REJECTED");
+                                        customCtx.header("x-rate-limit-zone", listenerConfig.getRateLimit().getZone());
+                                        customCtx.header("Retry-After",
+                                                String.valueOf(rateLimitManager.getZoneTimeoutSeconds(
+                                                        listenerConfig.getRateLimit().getZone())));
+                                        customCtx.result("Too Many Requests");
+                                        return;
+                                    }
+                                    if (rlResult == RateLimitResult.DELAYED) {
+                                        customCtx.header("x-rate-limit", "DELAYED");
+                                    }
+                                }
+
+                                // ─── Rate Limit: Route level ──────────────────────
+                                if (rateLimitManager.isEnabled() && urlContext.getRateLimit() != null) {
+                                    RateLimitResult rlResult = rateLimitManager.acquirePermission(
+                                            "route:" + contextName, urlContext.getRateLimit());
+                                    rootSpan.tag("rate.limit.route", rlResult.name());
+                                    if (proxyMetrics != null) {
+                                        proxyMetrics.recordRateLimitEvent("route",
+                                                urlContext.getRateLimit().getZone(), rlResult.name());
+                                    }
+                                    if (rlResult == RateLimitResult.REJECTED) {
+                                        customCtx.status(429);
+                                        customCtx.header("x-rate-limit", "REJECTED");
+                                        customCtx.header("x-rate-limit-scope", "route");
+                                        customCtx.header("x-rate-limit-zone", urlContext.getRateLimit().getZone());
+                                        customCtx.header("Retry-After",
+                                                String.valueOf(rateLimitManager.getZoneTimeoutSeconds(
+                                                        urlContext.getRateLimit().getZone())));
+                                        customCtx.result("Too Many Requests");
+                                        return;
+                                    }
+                                    if (rlResult == RateLimitResult.DELAYED) {
+                                        customCtx.header("x-rate-limit", "DELAYED");
+                                    }
+                                }
+
                                 if (listenerConfig.getSecured()) {
                                     if (urlContext.getSecured()) {
                                         SpanWrapper securedPan = traceWrapper.createSpan(urlContext.getMethod().toLowerCase() + "-handler-secured-[" + contextName + "]");
@@ -238,6 +291,55 @@ public class EndpointWrapper {
                                         rootSpan.tag("http.request.content_length", ctx.contentLength());
                                     }
                                     try {
+                                        // ─── Rate Limit: Listener level ───────────────────
+                                        if (rateLimitManager.isEnabled() && listenerConfig.getRateLimit() != null) {
+                                            RateLimitResult rlResult = rateLimitManager.acquirePermission(
+                                                    "listener:" + name, listenerConfig.getRateLimit());
+                                            rootSpan.tag("rate.limit.listener", rlResult.name());
+                                            if (proxyMetrics != null) {
+                                                proxyMetrics.recordRateLimitEvent("listener",
+                                                        listenerConfig.getRateLimit().getZone(), rlResult.name());
+                                            }
+                                            if (rlResult == RateLimitResult.REJECTED) {
+                                                customCtx.status(429);
+                                                customCtx.header("x-rate-limit", "REJECTED");
+                                                customCtx.header("x-rate-limit-zone", listenerConfig.getRateLimit().getZone());
+                                                customCtx.header("Retry-After",
+                                                        String.valueOf(rateLimitManager.getZoneTimeoutSeconds(
+                                                                listenerConfig.getRateLimit().getZone())));
+                                                customCtx.result("Too Many Requests");
+                                                return;
+                                            }
+                                            if (rlResult == RateLimitResult.DELAYED) {
+                                                customCtx.header("x-rate-limit", "DELAYED");
+                                            }
+                                        }
+
+                                        // ─── Rate Limit: Route level ──────────────────────
+                                        if (rateLimitManager.isEnabled() && urlContext.getRateLimit() != null) {
+                                            RateLimitResult rlResult = rateLimitManager.acquirePermission(
+                                                    "route:" + contextName, urlContext.getRateLimit());
+                                            rootSpan.tag("rate.limit.route", rlResult.name());
+                                            if (proxyMetrics != null) {
+                                                proxyMetrics.recordRateLimitEvent("route",
+                                                        urlContext.getRateLimit().getZone(), rlResult.name());
+                                            }
+                                            if (rlResult == RateLimitResult.REJECTED) {
+                                                customCtx.status(429);
+                                                customCtx.header("x-rate-limit", "REJECTED");
+                                                customCtx.header("x-rate-limit-scope", "route");
+                                                customCtx.header("x-rate-limit-zone", urlContext.getRateLimit().getZone());
+                                                customCtx.header("Retry-After",
+                                                        String.valueOf(rateLimitManager.getZoneTimeoutSeconds(
+                                                                urlContext.getRateLimit().getZone())));
+                                                customCtx.result("Too Many Requests");
+                                                return;
+                                            }
+                                            if (rlResult == RateLimitResult.DELAYED) {
+                                                customCtx.header("x-rate-limit", "DELAYED");
+                                            }
+                                        }
+
                                         if (listenerConfig.getSecured()) {
                                             if (urlContext.getSecured()) {
                                                 SpanWrapper securedPan = traceWrapper.createSpan("any-handler-secured-[" + contextName + "]");

@@ -19,6 +19,7 @@ package dev.nishisan.ngate.manager;
 import dev.nishisan.ngate.auth.OAuthClientManager;
 import dev.nishisan.ngate.http.EndpointWrapper;
 import dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager;
+import dev.nishisan.ngate.http.ratelimit.RateLimitManager;
 import dev.nishisan.ngate.observabitliy.ProxyMetrics;
 import dev.nishisan.ngate.observabitliy.service.TracerService;
 import groovy.util.GroovyScriptEngine;
@@ -72,6 +73,9 @@ public class EndpointManager {
     @Autowired
     private BackendCircuitBreakerManager circuitBreakerManager;
 
+    @Autowired
+    private RateLimitManager rateLimitManager;
+
     @EventListener(ApplicationReadyEvent.class)
     private void onStartup() {
         try {
@@ -106,7 +110,7 @@ public class EndpointManager {
         logger.debug("Starting Endpoints");
         logger.debug("Total endpoints size:[{}]", this.configurationManager.loadConfiguration().getEndpoints().size());
         this.configurationManager.loadConfiguration().getEndpoints().forEach((endpointName, endPoingConfiguration) -> {
-            EndpointWrapper wrapper = new EndpointWrapper(oAUthClient, endPoingConfiguration, customGse, tracerService, proxyMetrics, circuitBreakerManager);
+            EndpointWrapper wrapper = new EndpointWrapper(oAUthClient, endPoingConfiguration, customGse, tracerService, proxyMetrics, circuitBreakerManager, rateLimitManager);
             activeWrappers.add(wrapper);
 
             logger.debug("\t Setting UP Endpoing:[{}] With :[{}] listener(s)", endpointName, endPoingConfiguration.getListeners().size());

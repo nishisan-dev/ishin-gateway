@@ -63,4 +63,14 @@ public class ServerConfiguration {
         this.circuitBreaker = circuitBreaker;
     }
 
+    private RateLimitConfiguration rateLimiting;
+
+    public RateLimitConfiguration getRateLimiting() {
+        return rateLimiting;
+    }
+
+    public void setRateLimiting(RateLimitConfiguration rateLimiting) {
+        this.rateLimiting = rateLimiting;
+    }
+
 }
