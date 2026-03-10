@@ -19,33 +19,35 @@ package dev.nishisan.ngate.http.ratelimit;
 import dev.nishisan.ngate.configuration.RateLimitConfiguration;
 import dev.nishisan.ngate.configuration.RateLimitRefConfiguration;
 import dev.nishisan.ngate.configuration.RateLimitZoneConfiguration;
-import io.github.resilience4j.ratelimiter.RateLimiter;
-import io.github.resilience4j.ratelimiter.RateLimiterConfig;
-import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
-import io.github.resilience4j.ratelimiter.RequestNotPermitted;
-import io.github.resilience4j.micrometer.tagged.TaggedRateLimiterMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
+import jakarta.annotation.PreDestroy;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Gerencia instâncias de {@link RateLimiter} por chave composta (scope + zone).
+ * Engine de rate limiting baseada em fixed-window com {@link Semaphore}.
  * <p>
- * Quando habilitado via {@code rateLimiting.enabled=true} no adapter.yaml,
- * controla a taxa de requests em 3 escopos: listener, rota (urlContext) e backend.
- * <p>
- * Dois modos de operação:
+ * Cada zona de rate limiting é implementada como um semáforo com N permits,
+ * resetado periodicamente por um {@link ScheduledExecutorService}.
+ * Isso garante comportamento determinístico para os modos stall e nowait:
  * <ul>
- *   <li><b>stall</b>: aguarda um slot livre até o timeout (equivalente ao {@code delay} do Nginx)</li>
- *   <li><b>nowait</b>: rejeita imediatamente com HTTP 429</li>
+ *   <li><b>stall</b>: {@code semaphore.tryAcquire(timeout)} — bloqueia a virtual
+ *       thread até que um permit esteja disponível ou o timeout expire</li>
+ *   <li><b>nowait</b>: {@code semaphore.tryAcquire(0)} — rejeita imediatamente
+ *       se não houver permit disponível</li>
  * </ul>
  * <p>
- * Métricas do rate limiter são automaticamente registradas no Micrometer
- * via {@link TaggedRateLimiterMetrics}.
+ * Métricas são registradas via Micrometer gauges para monitoramento em tempo real
+ * dos permits disponíveis por zona.
  *
  * @author Lucas Nishimura <lucas.nishimura@gmail.com>
  * @created 2026-03-10
@@ -55,15 +57,29 @@ public class RateLimitManager {
 
     private static final Logger logger = LogManager.getLogger(RateLimitManager.class);
 
-    private volatile RateLimiterRegistry registry;
     private volatile boolean enabled;
     private volatile String defaultMode = "nowait";
     private volatile RateLimitConfiguration currentConfig;
     private final MeterRegistry meterRegistry;
 
+    /**
+     * Mapa de rate limiters por chave composta (scope:zone).
+     * Cada entrada contém um Semaphore e sua configuração de zona associada.
+     */
+    private final ConcurrentHashMap<String, RateLimitEntry> limiters = new ConcurrentHashMap<>();
+
+    /**
+     * Cache das configurações de zona por nome.
+     */
+    private final ConcurrentHashMap<String, RateLimitZoneConfiguration> zoneConfigs = new ConcurrentHashMap<>();
+
+    /**
+     * Scheduler para reset periódico dos semáforos (um thread é suficiente).
+     */
+    private ScheduledExecutorService scheduler;
+
     public RateLimitManager(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        this.registry = RateLimiterRegistry.ofDefaults();
         this.enabled = false;
         logger.info("RateLimitManager initialized (waiting for configuration)");
     }
@@ -82,28 +98,19 @@ public class RateLimitManager {
         this.currentConfig = config;
         this.defaultMode = config.getDefaultMode() != null ? config.getDefaultMode() : "nowait";
 
-        // Cria registry com config default e registra cada zona
-        RateLimiterConfig defaultRlConfig = RateLimiterConfig.custom()
-                .limitForPeriod(100)
-                .limitRefreshPeriod(Duration.ofSeconds(1))
-                .timeoutDuration(Duration.ofSeconds(5))
-                .build();
+        // Limpa estado anterior
+        limiters.clear();
+        zoneConfigs.clear();
+        if (scheduler != null) {
+            scheduler.shutdown();
+        }
 
-        this.registry = RateLimiterRegistry.of(defaultRlConfig);
-
-        // Pré-registra todas as zonas configuradas
+        // Registra zonas
         if (config.getZones() != null) {
             for (Map.Entry<String, RateLimitZoneConfiguration> entry : config.getZones().entrySet()) {
                 String zoneName = entry.getKey();
                 RateLimitZoneConfiguration zone = entry.getValue();
-
-                RateLimiterConfig zoneConfig = RateLimiterConfig.custom()
-                        .limitForPeriod(zone.getLimitForPeriod())
-                        .limitRefreshPeriod(Duration.ofSeconds(zone.getLimitRefreshPeriodSeconds()))
-                        .timeoutDuration(Duration.ofSeconds(zone.getTimeoutSeconds()))
-                        .build();
-
-                registry.rateLimiter(zoneName, zoneConfig);
+                zoneConfigs.put(zoneName, zone);
 
                 logger.info("Rate limit zone [{}] configured: limit={}/{}s, timeout={}s",
                         zoneName,
@@ -113,12 +120,16 @@ public class RateLimitManager {
             }
         }
 
-        // Registra métricas no Micrometer
-        TaggedRateLimiterMetrics.ofRateLimiterRegistry(registry).bindTo(meterRegistry);
+        // Inicializa scheduler para reset periódico dos semáforos
+        scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "rate-limit-reset");
+            t.setDaemon(true);
+            return t;
+        });
 
         this.enabled = true;
         logger.info("Rate limiting: ENABLED (defaultMode={}, zones={})",
-                defaultMode, config.getZones() != null ? config.getZones().size() : 0);
+                defaultMode, zoneConfigs.size());
     }
 
     /**
@@ -143,100 +154,118 @@ public class RateLimitManager {
         String zoneName = ref.getZone();
         String effectiveMode = ref.getMode() != null ? ref.getMode() : defaultMode;
 
-        // Busca ou cria o rate limiter com chave composta scope:zone
-        String rateLimiterKey = scope + ":" + zoneName;
-        RateLimiter rateLimiter = getOrCreateRateLimiter(rateLimiterKey, zoneName);
+        RateLimitZoneConfiguration zoneConfig = zoneConfigs.get(zoneName);
+        if (zoneConfig == null) {
+            logger.warn("Rate limit zone [{}] not found in configuration, allowing request", zoneName);
+            return RateLimitResult.ALLOWED;
+        }
+
+        String key = scope + ":" + zoneName;
+        RateLimitEntry entry = limiters.computeIfAbsent(key, k -> createEntry(k, zoneConfig));
 
         if ("stall".equalsIgnoreCase(effectiveMode)) {
-            return acquireStall(rateLimiter, rateLimiterKey);
+            return acquireStall(entry, key, zoneConfig);
         } else {
-            return acquireNowait(rateLimiter, rateLimiterKey);
+            return acquireNowait(entry, key);
         }
     }
 
     /**
-     * Modo stall: aguarda um slot livre até o timeout configurado na zona.
-     * Bloqueia a virtual thread (sem impacto em platform threads).
+     * Modo stall: tenta adquirir um permit com timeout.
+     * Bloqueia a virtual thread (sem impacto em platform threads via Loom).
      */
-    private RateLimitResult acquireStall(RateLimiter rateLimiter, String key) {
+    private RateLimitResult acquireStall(RateLimitEntry entry, String key, RateLimitZoneConfiguration zoneConfig) {
         try {
-            long waitStart = System.nanoTime();
-            rateLimiter.acquirePermission();
-            long waitMs = (System.nanoTime() - waitStart) / 1_000_000;
+            long startNanos = System.nanoTime();
+            boolean acquired = entry.semaphore.tryAcquire(zoneConfig.getTimeoutSeconds(), TimeUnit.SECONDS);
+            long waitMs = (System.nanoTime() - startNanos) / 1_000_000;
+
+            if (!acquired) {
+                logger.debug("Rate limit stall [{}]: rejected after {}ms timeout", key, waitMs);
+                return RateLimitResult.REJECTED;
+            }
 
             if (waitMs > 1) {
                 logger.debug("Rate limit stall [{}]: delayed {}ms", key, waitMs);
                 return RateLimitResult.DELAYED;
             }
             return RateLimitResult.ALLOWED;
-        } catch (RequestNotPermitted e) {
-            logger.debug("Rate limit stall [{}]: rejected after timeout", key);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.debug("Rate limit stall [{}]: interrupted", key);
             return RateLimitResult.REJECTED;
         }
     }
 
     /**
-     * Modo nowait: tenta adquirir permissão sem espera.
-     * Rejeita imediatamente se não houver slot disponível.
-     * <p>
-     * Resilience4j 2.x: altera temporariamente o timeout para zero,
-     * tenta adquirir, e restaura o timeout original.
+     * Modo nowait: tenta adquirir um permit sem espera.
+     * Rejeita imediatamente se não houver permit disponível.
      */
-    private RateLimitResult acquireNowait(RateLimiter rateLimiter, String key) {
-        // Salva timeout original e troca para zero (nowait)
-        Duration originalTimeout = rateLimiter.getRateLimiterConfig().getTimeoutDuration();
-        rateLimiter.changeTimeoutDuration(Duration.ZERO);
-        try {
-            rateLimiter.acquirePermission();
+    private RateLimitResult acquireNowait(RateLimitEntry entry, String key) {
+        boolean acquired = entry.semaphore.tryAcquire();
+        if (acquired) {
             return RateLimitResult.ALLOWED;
-        } catch (RequestNotPermitted e) {
-            logger.debug("Rate limit nowait [{}]: rejected immediately", key);
-            return RateLimitResult.REJECTED;
-        } finally {
-            // Restaura o timeout original para não afetar outros escopos
-            rateLimiter.changeTimeoutDuration(originalTimeout);
         }
+        logger.debug("Rate limit nowait [{}]: rejected immediately", key);
+        return RateLimitResult.REJECTED;
     }
 
     /**
-     * Obtém ou cria um RateLimiter para a chave composta.
-     * Se a zona estiver configurada, usa a config da zona; caso contrário usa defaults do registry.
+     * Cria uma nova entrada de rate limiting com semáforo e schedule de reset.
      */
-    private RateLimiter getOrCreateRateLimiter(String key, String zoneName) {
-        // Tenta buscar pelo key composto (scope:zone)
-        if (registry.find(key).isPresent()) {
-            return registry.rateLimiter(key);
-        }
+    private RateLimitEntry createEntry(String key, RateLimitZoneConfiguration zoneConfig) {
+        int permits = zoneConfig.getLimitForPeriod();
+        Semaphore semaphore = new Semaphore(permits, true); // fair = true
 
-        // Se a zona existe como template, cria o rate limiter com a mesma config
-        if (registry.find(zoneName).isPresent()) {
-            RateLimiter zoneTemplate = registry.rateLimiter(zoneName);
-            RateLimiterConfig zoneConfig = zoneTemplate.getRateLimiterConfig();
-            return registry.rateLimiter(key, zoneConfig);
-        }
+        // Registra gauge Micrometer para monitorar permits disponíveis
+        meterRegistry.gauge("ngate.ratelimit.available_permits",
+                Tags.of("key", key), semaphore, Semaphore::availablePermits);
 
-        // Fallback: usa config default do registry
-        logger.warn("Rate limit zone [{}] not found in configuration, using defaults", zoneName);
-        return registry.rateLimiter(key);
+        // Agenda reset periódico
+        long periodMs = zoneConfig.getLimitRefreshPeriodSeconds() * 1000L;
+        scheduler.scheduleAtFixedRate(() -> {
+            int available = semaphore.availablePermits();
+            int toRelease = permits - available;
+            if (toRelease > 0) {
+                semaphore.release(toRelease);
+            }
+        }, periodMs, periodMs, TimeUnit.MILLISECONDS);
+
+        logger.debug("Rate limiter created [{}]: permits={}, refreshPeriod={}ms", key, permits, periodMs);
+        return new RateLimitEntry(semaphore, permits);
     }
 
     /**
      * Retorna o timeout da zona configurada (útil para header Retry-After).
      */
     public int getZoneTimeoutSeconds(String zoneName) {
-        if (currentConfig != null && currentConfig.getZones() != null) {
-            RateLimitZoneConfiguration zone = currentConfig.getZones().get(zoneName);
-            if (zone != null) {
-                return zone.getTimeoutSeconds();
-            }
+        RateLimitZoneConfiguration zone = zoneConfigs.get(zoneName);
+        if (zone != null) {
+            return zone.getTimeoutSeconds();
         }
         return 5; // default
     }
 
+    @PreDestroy
+    private void shutdown() {
+        if (scheduler != null) {
+            scheduler.shutdown();
+            logger.info("RateLimitManager scheduler stopped");
+        }
+    }
+
+    // ─── Inner class ────────────────────────────────────────────────────
+
     /**
-     * @return o registry completo (útil para diagnóstico)
+     * Entrada interna que associa um semáforo ao seu limite máximo de permits.
      */
-    public RateLimiterRegistry getRegistry() {
-        return registry;
+    private static class RateLimitEntry {
+        final Semaphore semaphore;
+        final int maxPermits;
+
+        RateLimitEntry(Semaphore semaphore, int maxPermits) {
+            this.semaphore = semaphore;
+            this.maxPermits = maxPermits;
+        }
     }
 }
