@@ -31,8 +31,10 @@ import dev.nishisan.ngate.configuration.SecureProviderConfig;
 import dev.nishisan.ngate.exception.TokenDecodeException;
 import dev.nishisan.ngate.groovy.ProtectedBinding;
 import dev.nishisan.ngate.observabitliy.service.TracerService;
+import dev.nishisan.ngate.observabitliy.ProxyMetrics;
 import dev.nishisan.ngate.observabitliy.wrappers.SpanWrapper;
 import dev.nishisan.ngate.observabitliy.wrappers.TracerWrapper;
+import dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager;
 import groovy.util.GroovyScriptEngine;
 import groovy.util.ResourceException;
 import groovy.util.ScriptException;
@@ -66,14 +68,18 @@ public class EndpointWrapper {
     private final Logger logger = LogManager.getLogger(EndpointWrapper.class);
     private final GroovyScriptEngine customGse;
     private final TracerService tracerService;
+    private final ProxyMetrics proxyMetrics;
+    private final BackendCircuitBreakerManager circuitBreakerManager;
     private final SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
 
-    public EndpointWrapper(OAuthClientManager oauthManager, EndPointConfiguration configuration, GroovyScriptEngine gse, TracerService tracerService) {
+    public EndpointWrapper(OAuthClientManager oauthManager, EndPointConfiguration configuration, GroovyScriptEngine gse, TracerService tracerService, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager) {
         this.configuration = configuration;
         this.oauthManager = oauthManager;
-        this.proxyManager = new HttpProxyManager(this.oauthManager, configuration);
+        this.proxyManager = new HttpProxyManager(this.oauthManager, configuration, proxyMetrics, circuitBreakerManager);
         this.customGse = gse;
         this.tracerService = tracerService;
+        this.proxyMetrics = proxyMetrics;
+        this.circuitBreakerManager = circuitBreakerManager;
     }
 
     /**
@@ -113,6 +119,7 @@ public class EndpointWrapper {
                     if (handlerType != null) {
 
                         routes.addHttpHandler(handlerType, urlContext.getContext(), ctx -> {
+                            long handlerStartNanos = System.nanoTime();
                             logger.debug("---------------------------------------------------------------------");
                             TracerWrapper traceWrapper = new TracerWrapper(tracer, tracing);
                             CustomContextWrapper customCtx = new CustomContextWrapper(ctx, contextName, urlContext, traceWrapper);
@@ -191,12 +198,18 @@ public class EndpointWrapper {
                                 rootSpan.tag("http.status_code", ctx.statusCode());
                                 ctx.header("x-trace-id", traceWrapper.getTraceId());
                                 rootSpan.finish();
+                                // Métricas inbound
+                                if (proxyMetrics != null) {
+                                    long durationMs = (System.nanoTime() - handlerStartNanos) / 1_000_000;
+                                    proxyMetrics.recordInboundRequest(name, ctx.method().name(), ctx.statusCode(), durationMs);
+                                }
                             }
                         });
                     } else if ("ANY".equalsIgnoreCase(urlContext.getMethod())) {
 
                         methodMapping.values().forEach(type
                                 -> routes.addHttpHandler(type, urlContext.getContext(), ctx -> {
+                                    long handlerStartNanos = System.nanoTime();
                                     logger.debug("---------------------------------------------------------------------");
                                     TracerWrapper traceWrapper = new TracerWrapper(tracer, tracing);
                                     CustomContextWrapper customCtx = new CustomContextWrapper(ctx, contextName, urlContext, traceWrapper);
@@ -274,6 +287,11 @@ public class EndpointWrapper {
                                         rootSpan.tag("http.status_code", ctx.statusCode());
                                         ctx.header("x-trace-id", traceWrapper.getTraceId());
                                         rootSpan.finish();
+                                        // Métricas inbound
+                                        if (proxyMetrics != null) {
+                                            long durationMs = (System.nanoTime() - handlerStartNanos) / 1_000_000;
+                                            proxyMetrics.recordInboundRequest(name, ctx.method().name(), ctx.statusCode(), durationMs);
+                                        }
                                     }
                                 })
                         );

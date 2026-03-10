@@ -18,6 +18,8 @@ package dev.nishisan.ngate.manager;
 
 import dev.nishisan.ngate.auth.OAuthClientManager;
 import dev.nishisan.ngate.http.EndpointWrapper;
+import dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager;
+import dev.nishisan.ngate.observabitliy.ProxyMetrics;
 import dev.nishisan.ngate.observabitliy.service.TracerService;
 import groovy.util.GroovyScriptEngine;
 import io.javalin.Javalin;
@@ -64,6 +66,12 @@ public class EndpointManager {
     @Autowired
     private TracerService tracerService;
 
+    @Autowired
+    private ProxyMetrics proxyMetrics;
+
+    @Autowired
+    private BackendCircuitBreakerManager circuitBreakerManager;
+
     @EventListener(ApplicationReadyEvent.class)
     private void onStartup() {
         try {
@@ -98,7 +106,7 @@ public class EndpointManager {
         logger.debug("Starting Endpoints");
         logger.debug("Total endpoints size:[{}]", this.configurationManager.loadConfiguration().getEndpoints().size());
         this.configurationManager.loadConfiguration().getEndpoints().forEach((endpointName, endPoingConfiguration) -> {
-            EndpointWrapper wrapper = new EndpointWrapper(oAUthClient, endPoingConfiguration, customGse, tracerService);
+            EndpointWrapper wrapper = new EndpointWrapper(oAUthClient, endPoingConfiguration, customGse, tracerService, proxyMetrics, circuitBreakerManager);
             activeWrappers.add(wrapper);
 
             logger.debug("\t Setting UP Endpoing:[{}] With :[{}] listener(s)", endpointName, endPoingConfiguration.getListeners().size());

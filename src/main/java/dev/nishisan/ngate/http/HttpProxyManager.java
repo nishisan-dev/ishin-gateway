@@ -26,6 +26,8 @@ import dev.nishisan.ngate.configuration.BackendConfiguration;
 import dev.nishisan.ngate.configuration.EndPointConfiguration;
 import dev.nishisan.ngate.configuration.EndPointListenersConfiguration;
 import dev.nishisan.ngate.groovy.ProtectedBinding;
+import dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager;
+import dev.nishisan.ngate.observabitliy.ProxyMetrics;
 import dev.nishisan.ngate.observabitliy.wrappers.SpanWrapper;
 import dev.nishisan.ngate.observabitliy.wrappers.TracerWrapper;
 import groovy.json.JsonSlurper;
@@ -125,6 +127,8 @@ public class HttpProxyManager {
     private final HttpResponseAdapter httpResponseAdapter = new HttpResponseAdapter();
     private final HttpClientUtils httpClientUtils = new HttpClientUtils(this);
     private final SynthHttpResponseAdapter okHttpResponseAdapter = new SynthHttpResponseAdapter();
+    private final ProxyMetrics proxyMetrics;
+    private final BackendCircuitBreakerManager circuitBreakerManager;
     private Cache<String, OkHttpClient> transientClients;
 
     // Connection pool compartilhado entre todos os OkHttpClients (configurável via adapter.yaml)
@@ -133,9 +137,11 @@ public class HttpProxyManager {
     // Dispatcher compartilhado com Virtual Threads (Java 21)
     private final Dispatcher sharedDispatcher;
 
-    public HttpProxyManager(OAuthClientManager oauthManager, EndPointConfiguration configuration) {
+    public HttpProxyManager(OAuthClientManager oauthManager, EndPointConfiguration configuration, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager) {
         this.configuration = configuration;
         this.oauthManager = oauthManager;
+        this.proxyMetrics = proxyMetrics;
+        this.circuitBreakerManager = circuitBreakerManager;
         this.sharedConnectionPool = new ConnectionPool(
                 configuration.getConnectionPoolSize(),
                 configuration.getConnectionPoolKeepAliveMinutes(),
@@ -574,7 +580,38 @@ public class HttpProxyManager {
                      */
                     Long start = System.currentTimeMillis();
                     try {
-                        Response res = this.getHttpClientByListenerName(backendname).newCall(req).execute();
+                        // Circuit breaker: envolve a chamada upstream
+                        Response res;
+                        if (circuitBreakerManager != null) {
+                            var cb = circuitBreakerManager.getOrCreate(backendname);
+                            final Request finalReq = req;
+                            final String finalBackendname = backendname;
+                            try {
+                                res = cb.executeCallable(() ->
+                                    this.getHttpClientByListenerName(finalBackendname).newCall(finalReq).execute()
+                                );
+                            } catch (io.github.resilience4j.circuitbreaker.CallNotPermittedException cbEx) {
+                                logger.warn("Circuit breaker OPEN for backend [{}] — rejecting request immediately", backendname);
+                                handler.status(503);
+                                handler.header("x-circuit-breaker", "OPEN");
+                                handler.header("x-upstream-id", backendname);
+                                handler.result("Service Unavailable — circuit breaker open for " + backendname);
+                                if (proxyMetrics != null) {
+                                    proxyMetrics.recordUpstreamError(backendname, handler.method().name());
+                                }
+                                requestSpan.tag("circuit.breaker", "OPEN");
+                                requestSpan.finish();
+                                return;
+                            } catch (Exception cbWrappedEx) {
+                                // Unwrap para não perder o IOException original
+                                if (cbWrappedEx.getCause() instanceof IOException ioEx) {
+                                    throw ioEx;
+                                }
+                                throw new IOException("Circuit breaker wrapped exception", cbWrappedEx);
+                            }
+                        } else {
+                            res = this.getHttpClientByListenerName(backendname).newCall(req).execute();
+                        }
 
                         // Tags de resposta upstream
                         requestSpan.tag("upstream.status_code", res.code());
@@ -583,6 +620,12 @@ public class HttpProxyManager {
                         }
                         if (res.header("Content-Length") != null) {
                             requestSpan.tag("upstream.content_length", res.header("Content-Length"));
+                        }
+
+                        // Métricas upstream
+                        if (proxyMetrics != null) {
+                            long upstreamDuration = System.currentTimeMillis() - start;
+                            proxyMetrics.recordUpstreamRequest(backendname, handler.method().name(), res.code(), upstreamDuration);
                         }
 
                         /**
@@ -614,6 +657,10 @@ public class HttpProxyManager {
                         handler.header("x-upstream-id", listenerName);
                         handler.result(clientEx.getMessage());
                         requestSpan.error(clientEx);
+                        // Métricas upstream error
+                        if (proxyMetrics != null) {
+                            proxyMetrics.recordUpstreamError(backendname, handler.method().name());
+                        }
                     } finally {
                         requestSpan.finish();
                     }

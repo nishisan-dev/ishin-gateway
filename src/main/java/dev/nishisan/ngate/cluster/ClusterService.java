@@ -25,6 +25,8 @@ import dev.nishisan.utils.ngrid.structures.NGridConfig;
 import dev.nishisan.utils.ngrid.structures.NGridNode;
 
 import jakarta.annotation.PreDestroy;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,8 +39,6 @@ import java.io.Serializable;
 import java.net.InetAddress;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -64,6 +64,9 @@ public class ClusterService {
 
     @Autowired
     private ConfigurationManager configurationManager;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     private NGridNode gridNode;
     private boolean clusterMode = false;
@@ -113,6 +116,14 @@ public class ClusterService {
 
             logger.info("NGrid cluster started — nodeId: [{}], cluster: [{}], port: [{}]",
                     localNodeId, clusterConfig.getClusterName(), clusterConfig.getPort());
+
+            // Registrar Gauges de cluster no Micrometer
+            Gauge.builder("ngate.cluster.active.members", this, ClusterService::getActiveMembersCount)
+                    .description("Number of active members in the NGrid cluster")
+                    .register(meterRegistry);
+            Gauge.builder("ngate.cluster.is.leader", this, cs -> cs.isLeader() ? 1.0 : 0.0)
+                    .description("Whether this instance is the NGrid cluster leader (1=leader, 0=follower)")
+                    .register(meterRegistry);
         } catch (Exception e) {
             logger.error("Failed to start NGrid cluster — falling back to standalone", e);
             this.clusterMode = false;
