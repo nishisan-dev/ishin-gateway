@@ -27,6 +27,7 @@ import dev.nishisan.ngate.configuration.EndPointURLContext;
 import dev.nishisan.ngate.configuration.OauthServerClientConfiguration;
 import dev.nishisan.ngate.configuration.SSLListenerConfiguration;
 import dev.nishisan.ngate.configuration.ServerConfiguration;
+import dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -63,6 +64,9 @@ public class ConfigurationManager {
     @Autowired
     private OAuthClientManager oauthClientManager;
 
+    @Autowired
+    private BackendCircuitBreakerManager circuitBreakerManager;
+
     private ObjectMapper yamlSerializer = new ObjectMapper(new YAMLFactory());
 
     @EventListener(ApplicationReadyEvent.class)
@@ -75,9 +79,10 @@ public class ConfigurationManager {
                     oauthClientManager.addSsoConfiguration(bv.getOauthClientConfig());
                 }
             });
-
         });
 
+        // Configura o circuit breaker com valores do adapter.yaml
+        circuitBreakerManager.configure(configuration.getCircuitBreaker());
     }
 
     /**
