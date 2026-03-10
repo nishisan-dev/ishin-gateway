@@ -8,6 +8,9 @@ O n-gate é um API Gateway/Reverse Proxy construído sobre uma stack de alta per
 - **OkHttp 4** como cliente HTTP para backends
 - **Groovy 3** como motor de regras dinâmicas
 - **Brave/Zipkin** para observabilidade distribuída
+- **NGrid** (nishi-utils) para cluster mode com mesh TCP, leader election e DistributedMap
+- **Resilience4j** para circuit breaker por backend
+- **Micrometer** para métricas Prometheus via Spring Boot Actuator
 - **Spring Boot 3.5** para gerenciamento de configuração e ciclo de vida
 
 O gateway recebe requests HTTP, os processa através de um pipeline configurável (autenticação → regras → roteamento → upstream → resposta) e retorna o resultado ao cliente.
@@ -188,11 +191,90 @@ workload.returnPipe = false  // materializa para permitir inspeção
 | `dev.nishisan.ngate.auth` | Autenticação: JWT, OAuth, Token Decoders |
 | `dev.nishisan.ngate.auth.jwt` | Implementações JWT (built-in e closure) |
 | `dev.nishisan.ngate.auth.wrapper` | Wrappers para tokens |
+| `dev.nishisan.ngate.cluster` | Cluster mode: `ClusterService` (NGrid lifecycle, leadership, DistributedMap) |
 | `dev.nishisan.ngate.configuration` | POJOs de configuração mapeados do `adapter.yaml` |
 | `dev.nishisan.ngate.exception` | Exceções customizadas (SSO, Token) |
 | `dev.nishisan.ngate.groovy` | `ProtectedBinding` — binding seguro para Groovy |
 | `dev.nishisan.ngate.http` | Core: proxy, workload, adapters, context wrapper |
+| `dev.nishisan.ngate.http.circuit` | `BackendCircuitBreakerManager` (Resilience4j) |
 | `dev.nishisan.ngate.http.clients` | Utilitários de HTTP client |
 | `dev.nishisan.ngate.http.synth` | Respostas HTTP sintéticas |
 | `dev.nishisan.ngate.manager` | Gerenciadores de configuração e endpoints |
-| `dev.nishisan.ngate.observabitliy` | TracerService, SpanWrapper, TracerWrapper |
+| `dev.nishisan.ngate.observabitliy` | TracerService, SpanWrapper, TracerWrapper, ProxyMetrics |
+
+---
+
+## Cluster Mode (NGrid)
+
+O n-gate suporta um **cluster mode opt-in** que permite múltiplas instâncias coordenarem estado via mesh TCP. O cluster é alimentado pela biblioteca [NGrid](https://github.com/nishisan-dev/nishi-utils) (nishi-utils).
+
+### Topologia
+
+![Topologia Cluster](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/cluster_topology.puml)
+
+Cada instância embarca um `NGridNode` que forma um mesh TCP com os demais nós. O mesh utiliza leader election baseada em quorum/epoch fencing e `DistributedMap` para replicação de estado.
+
+### ClusterService
+
+- **Classe:** `dev.nishisan.ngate.cluster.ClusterService`
+- **Responsabilidade:** Gerencia o lifecycle do `NGridNode` embarcado. Inicializado via `@EventListener(ApplicationReadyEvent)`:
+  1. Lê o bloco `cluster:` do `adapter.yaml`
+  2. Se `enabled: false` (default), opera em modo standalone transparente
+  3. Se `enabled: true`, cria e inicia o `NGridNode` com mesh TCP
+  4. Registra listeners de leadership e gauges Micrometer
+- **API para outros componentes:**
+  - `isClusterMode()` — cluster ativo?
+  - `isLeader()` — esta instância é líder? (`true` se standalone)
+  - `getDistributedMap(name, keyType, valueType)` — obtém ou cria mapa distribuído
+  - `addLeadershipListener(BiConsumer)` — notificação de mudança de líder
+
+### Token Sharing (POW-RBL)
+
+Tokens OAuth2 são compartilhados entre instâncias via `DistributedMap<String, SerializableTokenData>`:
+
+1. **Publish-on-write:** Após obter ou renovar um token, a instância publica no `DistributedMap`
+2. **Read-before-login:** Antes de ir ao IdP, cada instância verifica se existe token válido no mapa
+3. **Resiliência:** Todas as instâncias mantêm `TokenRefreshThread` — se o mapa falhar, fazem login autônomo
+
+### Rules Deploy e Replicação
+
+O deploy de scripts Groovy é feito via Admin API (`POST /admin/rules/deploy`) e replicado no cluster:
+
+1. O nó que recebe o deploy aplica localmente e publica o `RulesBundle` no `DistributedMap("ngate-rules")`
+2. Followers detectam nova versão via polling thread (5s) e aplicam automaticamente
+3. O `GroovyScriptEngine` é substituído via swap atômico (`volatile`)
+
+---
+
+## Circuit Breaker
+
+O n-gate protege backends com [Resilience4j](https://resilience4j.readme.io/), gerenciado pelo `BackendCircuitBreakerManager`.
+
+- **Classe:** `dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager`
+- **Ativação:** Bloco `circuitBreaker:` no `adapter.yaml` com `enabled: true`
+- **Isolamento:** Um `CircuitBreaker` independente por backend (nome)
+- **Transições:** `CLOSED → OPEN → HALF_OPEN → CLOSED`
+- **Comportamento em OPEN:** Request rejeitado imediatamente com **HTTP 503** + header `x-circuit-breaker: OPEN`
+- **Métricas:** Registradas automaticamente no Micrometer via `TaggedCircuitBreakerMetrics`
+
+Para referência de configuração, veja [docs/configuration.md](configuration.md#circuit-breaker).
+
+---
+
+## Métricas Prometheus
+
+O `ProxyMetrics` instrumenta o hot path com counters e timers Micrometer:
+
+| Métrica | Tipo | Tags | Descrição |
+|---------|------|------|-----------|
+| `ngate.requests.total` | Counter | listener, method, status | Total de requests inbound |
+| `ngate.request.duration` | Timer | listener, method | Latência inbound (ms) |
+| `ngate.request.errors` | Counter | listener, method | Erros inbound |
+| `ngate.upstream.requests` | Counter | backend, method, status | Total de requests upstream |
+| `ngate.upstream.duration` | Timer | backend, method | Latência upstream (ms) |
+| `ngate.upstream.errors` | Counter | backend, method | Erros upstream |
+| `ngate.cluster.active.members` | Gauge | — | Membros ativos no cluster |
+| `ngate.cluster.is.leader` | Gauge | — | 1=leader, 0=follower |
+
+Endpoint: `GET /actuator/prometheus` (porta `9190`)
+

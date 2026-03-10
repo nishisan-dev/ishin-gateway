@@ -27,6 +27,11 @@ endpoints:
     # OkHttp Dispatcher
     dispatcherMaxRequests: 512
     dispatcherMaxRequestsPerHost: 256
+
+# Blocos opcionais (nível raiz)
+cluster:            # Cluster mode NGrid (opt-in)
+admin:              # Admin API para deploy de rules
+circuitBreaker:     # Circuit breaker por backend
 ```
 
 ---
@@ -204,6 +209,114 @@ Controla concorrência de requests upstream (usa Virtual Threads):
 
 ---
 
+## Cluster Mode
+
+O bloco `cluster:` habilita o cluster mode com NGrid. Se ausente ou `enabled: false`, o n-gate opera em modo standalone.
+
+```yaml
+cluster:
+  enabled: true
+  nodeId: "ngate-node1"              # Opcional: env NGATE_CLUSTER_NODE_ID → hostname → UUID
+  host: "0.0.0.0"
+  port: 7100
+  clusterName: "ngate-cluster"
+  seeds:
+    - "ngate-node1:7100"
+    - "ngate-node2:7100"
+    - "ngate-node3:7100"
+  replicationFactor: 2
+  dataDirectory: "/tmp/ngrid-data"
+```
+
+### Campos do Cluster
+
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `enabled` | Boolean | `false` | Habilita o cluster mode NGrid |
+| `nodeId` | String | `null` | ID do nó (fallback: env `NGATE_CLUSTER_NODE_ID` → hostname → UUID) |
+| `host` | String | `"0.0.0.0"` | Endereço de bind do mesh TCP |
+| `port` | Integer | `7100` | Porta do mesh TCP NGrid |
+| `clusterName` | String | `"ngate-cluster"` | Nome do cluster (todos os nós devem usar o mesmo) |
+| `seeds` | List\<String\> | `[]` | Lista de peers no formato `host:port` (inclui o próprio nó — self-seed é filtrado automaticamente) |
+| `replicationFactor` | Integer | `2` | Fator de replicação dos dados no DistributedMap |
+| `dataDirectory` | String | `"./data/ngrid"` | Diretório para persistência de dados NGrid |
+
+---
+
+## Admin API
+
+O bloco `admin:` configura os endpoints administrativos para deploy de rules e consulta.
+
+```yaml
+admin:
+  enabled: true
+  apiKey: "my-secret-api-key"
+```
+
+### Campos do Admin
+
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `enabled` | Boolean | `false` | Habilita os endpoints `/admin/*` |
+| `apiKey` | String | `null` | Chave de autenticação via header `X-API-Key` |
+
+### Endpoints
+
+| Endpoint | Método | Descrição |
+|----------|--------|-----------|
+| `/admin/rules/deploy` | POST | Upload multipart de scripts `.groovy` para deploy |
+| `/admin/rules/version` | GET | Versão do bundle de rules ativo |
+
+### Uso
+
+```bash
+# Deploy de rules (upload de todos os .groovy na pasta rules/)
+curl -X POST http://localhost:9190/admin/rules/deploy \
+  -H "X-API-Key: my-secret-api-key" \
+  -F "scripts=@rules/default/Rules.groovy"
+
+# Consultar versão do bundle ativo
+curl http://localhost:9190/admin/rules/version \
+  -H "X-API-Key: my-secret-api-key"
+```
+
+---
+
+## Circuit Breaker
+
+O bloco `circuitBreaker:` configura a proteção de backends com Resilience4j.
+
+```yaml
+circuitBreaker:
+  enabled: true
+  failureRateThreshold: 50
+  waitDurationInOpenState: 60
+  slidingWindowSize: 100
+  permittedCallsInHalfOpenState: 10
+  slowCallDurationThreshold: 5
+  slowCallRateThreshold: 80
+```
+
+### Campos do Circuit Breaker
+
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `enabled` | Boolean | `false` | Habilita circuit breaker para todos os backends |
+| `failureRateThreshold` | Integer | `50` | % de falhas para abrir o circuito |
+| `waitDurationInOpenState` | Integer | `60` | Segundos em OPEN antes de transição para HALF_OPEN |
+| `slidingWindowSize` | Integer | `100` | Tamanho da janela deslizante (requests) |
+| `permittedCallsInHalfOpenState` | Integer | `10` | Requests permitidos em HALF_OPEN para teste |
+| `slowCallDurationThreshold` | Integer | `5` | Segundos para considerar uma chamada lenta |
+| `slowCallRateThreshold` | Integer | `80` | % de chamadas lentas para abrir o circuito |
+
+### Comportamento
+
+- **CLOSED:** Tráfego normal. Falhas são contabilizadas na sliding window.
+- **OPEN:** Requests rejeitados com **HTTP 503** + header `x-circuit-breaker: OPEN`.
+- **HALF_OPEN:** Número limitado de requests é permitido para testar recuperação.
+
+---
+
 ## Variáveis de Ambiente
 
 | Variável | Default | Descrição |
@@ -212,6 +325,9 @@ Controla concorrência de requests upstream (usa Virtual Threads):
 | `ZIPKIN_ENDPOINT` | — | URL do Zipkin collector (ex: `http://zipkin:9411/api/v2/spans`) |
 | `TRACING_ENABLED` | `true` | Habilita/desabilita tracing |
 | `SPRING_PROFILES_DEFAULT` | `dev` | Profile Spring Boot ativo (`dev`, `bench`) |
+| `NGATE_CLUSTER_NODE_ID` | — | ID do nó do cluster (override do `nodeId` do YAML) |
+| `NGATE_INSTANCE_ID` | hostname | ID da instância para tracing spans |
+| `MANAGEMENT_PORT` | `9190` | Porta do Spring Boot Actuator (health, prometheus, admin API) |
 
 ---
 
@@ -332,3 +448,65 @@ endpoints:
     dispatcherMaxRequests: 512
     dispatcherMaxRequestsPerHost: 256
 ```
+
+### Cluster Mode — 3 nós com token sharing
+
+```yaml
+---
+endpoints:
+  default:
+    listeners:
+      http-noauth:
+        listenAddress: "0.0.0.0"
+        listenPort: 9091
+        ssl: false
+        scriptOnly: false
+        defaultBackend: "static-backend"
+        secured: false
+        urlContexts:
+          default:
+            context: "/*"
+            method: "ANY"
+            ruleMapping: "default/Rules.groovy"
+
+    backends:
+      static-backend:
+        backendName: "static-backend"
+        endPointUrl: "http://static-backend:8080"
+
+    ruleMapping: "default/Rules.groovy"
+    ruleMappingThreads: 1
+    socketTimeout: 30
+    jettyMinThreads: 16
+    jettyMaxThreads: 500
+    jettyIdleTimeout: 120000
+    connectionPoolSize: 256
+    connectionPoolKeepAliveMinutes: 5
+    dispatcherMaxRequests: 512
+    dispatcherMaxRequestsPerHost: 256
+
+# nodeId é resolvido automaticamente via env NGATE_CLUSTER_NODE_ID
+cluster:
+  enabled: true
+  host: "0.0.0.0"
+  port: 7100
+  clusterName: "ngate-cluster"
+  seeds:
+    - "ngate-node1:7100"
+    - "ngate-node2:7100"
+    - "ngate-node3:7100"
+  replicationFactor: 2
+  dataDirectory: "/tmp/ngrid-data"
+
+admin:
+  enabled: true
+  apiKey: "my-cluster-admin-key"
+
+circuitBreaker:
+  enabled: true
+  failureRateThreshold: 50
+  waitDurationInOpenState: 60
+  slidingWindowSize: 100
+```
+
+> **Nota:** O `nodeId` é diferente para cada instância. Em Docker, use a variável de ambiente `NGATE_CLUSTER_NODE_ID` para definir o hostname do container. Veja `docker-compose.cluster.yml` para exemplo completo.

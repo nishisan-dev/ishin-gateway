@@ -1,0 +1,50 @@
+@startuml cluster_topology
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title n-gate — Topologia Cluster (C4)
+
+Person(client, "Cliente HTTP", "Aplicação ou usuário que consome APIs")
+
+System_Boundary(lb_boundary, "Load Balancer") {
+    Container(nginx_lb, "nginx", "Round-Robin", "Distribui requests entre os nós n-gate")
+}
+
+System_Boundary(cluster_boundary, "n-gate Cluster (NGrid Mesh)") {
+    Container(node1, "n-gate Node 1", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
+    Container(node2, "n-gate Node 2", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
+    Container(node3, "n-gate Node 3", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
+}
+
+System_Boundary(state_boundary, "Estado Distribuído (DistributedMap)") {
+    ContainerDb(token_map, "ngate-tokens", "NGrid DistributedMap", "Tokens OAuth2 compartilhados (POW-RBL)")
+    ContainerDb(rules_map, "ngate-rules", "NGrid DistributedMap", "RulesBundle para deploy atômico de scripts Groovy")
+}
+
+System_Ext(backends, "Backend Services", "APIs de destino (HTTP/HTTPS)")
+System_Ext(keycloak, "Keycloak", "Identity Provider (OAuth2 / OIDC)")
+System_Ext(zipkin, "Zipkin", "Distributed Tracing Collector")
+
+Rel(client, nginx_lb, "HTTP Request", "TCP :5080")
+Rel(nginx_lb, node1, "Round-Robin", ":9091")
+Rel(nginx_lb, node2, "Round-Robin", ":9091")
+Rel(nginx_lb, node3, "Round-Robin", ":9091")
+
+Rel(node1, node2, "NGrid Mesh", "TCP :7100")
+Rel(node2, node3, "NGrid Mesh", "TCP :7100")
+Rel(node1, node3, "NGrid Mesh", "TCP :7100")
+
+Rel(node1, token_map, "Publish/Read")
+Rel(node2, token_map, "Publish/Read")
+Rel(node3, token_map, "Publish/Read")
+
+Rel(node1, rules_map, "Deploy/Replicate")
+
+Rel(node1, backends, "Upstream", "HTTP/HTTPS")
+Rel(node2, backends, "Upstream", "HTTP/HTTPS")
+Rel(node3, backends, "Upstream", "HTTP/HTTPS")
+
+Rel(node1, keycloak, "OAuth2 Token", "HTTP")
+Rel(node1, zipkin, "Spans", "HTTP")
+
+SHOW_LEGEND()
+@enduml

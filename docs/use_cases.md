@@ -509,3 +509,112 @@ curl http://localhost:8080/api/dashboard
 | 5 | Transformação | ❌ | ❌ | Processor | 1 |
 | 6 | Benchmark | ❌ | ❌ | Vazio | 1 (estático) |
 | 7 | Composição | ❌ | ❌ | Full | N (async) |
+| 8 | Cluster + Token Sharing | ❌ | ❌ | Vazio | 1 (cluster) |
+
+---
+
+## 8. Cluster com Token Sharing (NGrid)
+
+Múltiplas instâncias do n-gate operam como cluster coordenado, compartilhando tokens OAuth2 e permitindo deploy atômico de regras Groovy.
+
+```
+                     ┌────────────────────────────────┐
+ Cliente ──────────▶ │  nginx LB (round-robin :5080)  │
+                     └──────┬──────────┬──────────┬───┘
+                            │          │          │
+                     ┌──────▼──┐ ┌────▼────┐ ┌──▼──────┐
+                     │ n-gate  │ │ n-gate  │ │ n-gate  │
+                     │ node-1  │ │ node-2  │ │ node-3  │
+                     │  :9091  │ │  :9091  │ │  :9091  │
+                     │  :7100◄─┼─►:7100◄──┼─►:7100   │
+                     └──────┬──┘ └────┬────┘ └──┬──────┘
+                            │   NGrid Mesh     │
+                            └────────┬─────────┘
+                                     │
+                              Backend Service
+
+          DistributedMap: tokens OAuth + rules bundles
+```
+
+### adapter-cluster.yaml
+
+```yaml
+---
+endpoints:
+  default:
+    listeners:
+      http-noauth:
+        listenAddress: "0.0.0.0"
+        listenPort: 9091
+        ssl: false
+        scriptOnly: false
+        defaultBackend: "static-backend"
+        secured: false
+        urlContexts:
+          default:
+            context: "/*"
+            method: "ANY"
+            ruleMapping: "default/Rules.groovy"
+
+    backends:
+      static-backend:
+        backendName: "static-backend"
+        endPointUrl: "http://static-backend:8080"
+
+    ruleMapping: "default/Rules.groovy"
+    ruleMappingThreads: 1
+    socketTimeout: 30
+    jettyMinThreads: 16
+    jettyMaxThreads: 500
+    jettyIdleTimeout: 120000
+    connectionPoolSize: 256
+    connectionPoolKeepAliveMinutes: 5
+    dispatcherMaxRequests: 512
+    dispatcherMaxRequestsPerHost: 256
+
+cluster:
+  enabled: true
+  host: "0.0.0.0"
+  port: 7100
+  clusterName: "ngate-cluster"
+  seeds:
+    - "ngate-node1:7100"
+    - "ngate-node2:7100"
+    - "ngate-node3:7100"
+  replicationFactor: 2
+  dataDirectory: "/tmp/ngrid-data"
+```
+
+### Subir o cluster
+
+```bash
+# Subir com docker compose (standalone fica com 0 réplicas, cluster com 3 nós)
+docker compose -f docker-compose.yml -f docker-compose.cluster.yml up -d
+```
+
+### Validação
+
+```bash
+# Health check dos 3 nós (Actuator — porta 929x)
+curl -s http://localhost:9291/actuator/health | jq '.components.cluster'
+# {"status":"UP","details":{"clusterMode":"ACTIVE","clusterNodeId":"ngate-node1","isLeader":true,"activeMembers":["ngate-node1","ngate-node2","ngate-node3"]}}
+
+curl -s http://localhost:9292/actuator/health | jq '.components.cluster'
+# {"status":"UP","details":{"clusterMode":"ACTIVE","clusterNodeId":"ngate-node2","isLeader":false,...}}
+
+# Proxy via LB (round-robin entre os 3 nós)
+curl -i http://localhost:5080/qualquer/path
+
+# Proxy direto por nó
+curl -i http://localhost:9191/qualquer/path   # nó 1
+curl -i http://localhost:9192/qualquer/path   # nó 2
+curl -i http://localhost:9193/qualquer/path   # nó 3
+
+# Verificar métricas do cluster via Prometheus
+curl -s http://localhost:9291/actuator/prometheus | grep ngate_cluster
+# ngate_cluster_active_members 3.0
+# ngate_cluster_is_leader 1.0
+```
+
+> Para testes automatizados de cluster (Testcontainers), veja [docs/cluster_integration_tests.md](cluster_integration_tests.md).
+

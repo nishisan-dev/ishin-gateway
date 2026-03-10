@@ -9,6 +9,8 @@ Documentação da camada de distributed tracing do n-gate.
 | [Brave](https://github.com/openzipkin/brave) | 6.0.3 | Instrumentação e criação de spans |
 | [Zipkin Reporter](https://github.com/openzipkin/zipkin-reporter-java) | 3.4.0 | Envio assíncrono dos spans |
 | `zipkin-sender-okhttp3` | 3.4.0 | Transporte via OkHttp para o collector |
+| [Micrometer](https://micrometer.io/) | (Spring Boot BOM) | Métricas Prometheus (counters, timers, gauges) |
+| [Resilience4j](https://resilience4j.readme.io/) | 2.2.0 | Circuit breaker com métricas Micrometer |
 
 O endpoint do Zipkin collector é resolvido via variável de ambiente `ZIPKIN_URL` ou propriedade de sistema `zipkin.url`.
 
@@ -254,3 +256,70 @@ Wrapper sobre `Span` do Brave com API simplificada:
 - `tag(key, value)` — adiciona tag (suporta String, int, long)
 - `finish()` — finaliza o span
 - `addError(exception)` — marca o span como erro
+
+---
+
+## Métricas Prometheus
+
+Além do distributed tracing, o n-gate exporta métricas operacionais via [Micrometer](https://micrometer.io/) no endpoint `/actuator/prometheus` (porta `9190`).
+
+### Endpoint
+
+```bash
+curl http://localhost:9190/actuator/prometheus
+```
+
+### Métricas Inbound (por listener)
+
+| Métrica | Tipo | Tags | Descrição |
+|---------|------|------|-----------|
+| `ngate.requests.total` | Counter | listener, method, status | Total de requests recebidos |
+| `ngate.request.duration` | Timer | listener, method | Latência e2e do request (ms) |
+| `ngate.request.errors` | Counter | listener, method | Erros internos (exceções) |
+
+### Métricas Upstream (por backend)
+
+| Métrica | Tipo | Tags | Descrição |
+|---------|------|------|-----------|
+| `ngate.upstream.requests` | Counter | backend, method, status | Total de requests ao backend |
+| `ngate.upstream.duration` | Timer | backend, method | Latência da chamada upstream (ms) |
+| `ngate.upstream.errors` | Counter | backend, method | Erros de I/O no upstream |
+
+### Métricas Cluster (quando NGrid ativo)
+
+| Métrica | Tipo | Descrição |
+|---------|------|-----------|
+| `ngate.cluster.active.members` | Gauge | Número de membros ativos no mesh NGrid |
+| `ngate.cluster.is.leader` | Gauge | 1 se líder, 0 se follower |
+
+---
+
+## Circuit Breaker
+
+O [Resilience4j](https://resilience4j.readme.io/) protege os backends contra overload. Quando habilitado (bloco `circuitBreaker:` no `adapter.yaml`), um `CircuitBreaker` independente é criado para cada backend.
+
+### Comportamento
+
+| Estado | Descrição |
+|--------|-----------|
+| **CLOSED** | Tráfego normal. Falhas são contabilizadas na sliding window. |
+| **OPEN** | Requests rejeitados com **HTTP 503** + header `x-circuit-breaker: OPEN`. |
+| **HALF_OPEN** | Número limitado de requests permitido para testar recuperação do backend. |
+
+### Headers
+
+| Header | Quando | Valor |
+|--------|--------|-------|
+| `x-circuit-breaker` | Status 503 (circuito aberto) | `OPEN` |
+
+### Métricas
+
+As métricas do circuit breaker são registradas automaticamente no Micrometer via `TaggedCircuitBreakerMetrics`:
+
+| Métrica | Tipo | Descrição |
+|---------|------|-----------|
+| `resilience4j.circuitbreaker.state` | Gauge | Estado atual (0=CLOSED, 1=OPEN, 2=HALF_OPEN) |
+| `resilience4j.circuitbreaker.calls` | Counter | Chamadas por resultado (successful, failed, not_permitted) |
+| `resilience4j.circuitbreaker.failure.rate` | Gauge | Taxa de falha atual (%) |
+
+Para configuração detalhada, veja [docs/configuration.md](configuration.md#circuit-breaker).
