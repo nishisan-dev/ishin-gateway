@@ -326,8 +326,8 @@ GET /actuator/health      →  Load Balancer
 
 | # | Item | Prioridade | Esforço | Status | Notas |
 |---|---|---|---|---|---|
-| 8 | Backend circuit breaker | 🟡 Média | Médio/Alto | Pendente | Proteção contra overload em N instâncias × pool. |
-| 9 | Configuração distribuída | 🔵 Baixa | Médio | Pendente | CI/CD resolve no curto prazo. DistributedMap futuro. |
+| 8 | Backend circuit breaker | 🟡 Média | Médio/Alto | ✅ **Implementado** (Sessão 5) | Resilience4j + Micrometer. Testes 8/8 passando |
+| 9 | Métricas Prometheus (Micrometer) | 🟡 Média | Baixo | ✅ **Implementado** (Sessão 5) | ProxyMetrics counters/timers + Actuator endpoint |
 
 ### Descartados
 
@@ -597,3 +597,147 @@ d45a54b fix: add Admin API readiness wait in T8 test to prevent startup race con
 **Próximos passos:**
 1. Considerar backend circuit breaker (#8) e distributed configuration (#9)
 2. Métricas Prometheus (Micrometer/StatsUtils) — sessão dedicada
+
+---
+
+### Sessão 5 — 9 de Março de 2026 — Métricas Prometheus + Backend Circuit Breaker
+
+**Escopo:** Métricas Prometheus (Micrometer + nishi-utils-spring) + Backend Circuit Breaker (Resilience4j)
+
+**Itens implementados:**
+
+| Item | Descrição | Status |
+|---|---|---|
+| Bloco A | Métricas Prometheus — instrumentação hot path | ✅ Implementado + Compilado |
+| Bloco B | Backend Circuit Breaker (Resilience4j) | ✅ Implementado + Compilado |
+| — | Testes de integração (Prometheus + CB) | ❌ Pendente (próxima sessão) |
+
+**Bloco A — Métricas Prometheus:**
+- `ProxyMetrics.java` — `@Component` centralizado com counters/timers Micrometer:
+  - `ngate.requests.total` (listener, method, status) — total inbound requests
+  - `ngate.request.duration` (listener, method) — timer inbound
+  - `ngate.request.errors` (listener, method) — counter de erros inbound
+  - `ngate.upstream.requests` (backend, method, status) — total upstream requests
+  - `ngate.upstream.duration` (backend, method) — timer upstream
+  - `ngate.upstream.errors` (backend, method) — counter de erros upstream
+- `EndpointWrapper` — instrumentação com `System.nanoTime()` nos dois tipos de handler (específico e ANY), registra métricas inbound no `finally`
+- `HttpProxyManager` — métricas upstream no upstream call + error counters em catch IOException
+- `ClusterService` — Gauges Micrometer registrados após startup do NGridNode:
+  - `ngate.cluster.active.members` — número de membros ativos
+  - `ngate.cluster.is.leader` — 1=leader, 0=follower
+- `application.properties` — `management.endpoints.web.exposure.include=health,info,prometheus` + `nishi.utils.stats.enabled=true`
+- `application-test.properties` — idem
+
+**Bloco B — Circuit Breaker (Resilience4j):**
+- `CircuitBreakerConfiguration.java` — POJO YAML com defaults sensatos:
+  - `failureRateThreshold=50`, `waitDurationInOpenState=60s`, `slidingWindowSize=100`
+  - `permittedCallsInHalfOpenState=10`, `slowCallDurationThreshold=5s`, `slowCallRateThreshold=80`
+- `BackendCircuitBreakerManager.java` — `@Component` com `CircuitBreakerRegistry`:
+  - Obtém/cria CB por nome de backend (`getOrCreate()`)
+  - Auto-registro de métricas via `TaggedCircuitBreakerMetrics.bindTo(meterRegistry)`
+  - Configurável via `configure(CircuitBreakerConfiguration)` após load do adapter.yaml
+- `HttpProxyManager.handleRequest()` — upstream call envolvido pelo CB:
+  - `cb.executeCallable(...)` — wraps `getHttpClientByListenerName().newCall().execute()`
+  - `CallNotPermittedException` → HTTP 503, header `x-circuit-breaker: OPEN`
+  - Unwrap de `IOException` encapsulada pelo CB para preservar tratamento de erro existente
+- `ServerConfiguration.java` — campo `CircuitBreakerConfiguration circuitBreaker`
+- `adapter.yaml` — bloco `circuitBreaker:` comentado como exemplo
+
+**Propagação na cadeia de objetos:**
+```
+EndpointManager (@Autowired ProxyMetrics, BackendCircuitBreakerManager)
+  └── EndpointWrapper (construtor recebe ProxyMetrics, BackendCircuitBreakerManager)
+       └── HttpProxyManager (construtor recebe ProxyMetrics, BackendCircuitBreakerManager)
+```
+
+**Dependências adicionadas ao `pom.xml`:**
+
+| Dependência | Versão | Propósito |
+|---|---|---|
+| `io.micrometer:micrometer-registry-prometheus` | (gerenciada pelo Spring Boot BOM) | Endpoint `/actuator/prometheus` |
+| `dev.nishisan:nishi-utils-spring` | 1.0.2 | Bridge StatsUtils → Micrometer |
+| `io.github.resilience4j:resilience4j-circuitbreaker` | 2.2.0 | Circuit breaker para backends |
+| `io.github.resilience4j:resilience4j-micrometer` | 2.2.0 | Métricas CB → Micrometer |
+
+**Repositório GitHub Packages adicionado (pom.xml):**
+- `github-nishi-utils-spring` → `https://maven.pkg.github.com/nishisan-dev/nishi-utils-spring`
+
+**Ajustes no `~/.m2/settings.xml`:**
+- Adicionados server IDs `github-nishi-utils-spring` e `github-utils` com o mesmo PAT do `github`
+
+**Arquivos novos:**
+
+| Arquivo | Descrição |
+|---|---|
+| `ProxyMetrics.java` | Instrumentação centralizada Micrometer (counters + timers) |
+| `CircuitBreakerConfiguration.java` | POJO para bloco `circuitBreaker:` do adapter.yaml |
+| `BackendCircuitBreakerManager.java` | Registry de CircuitBreakers por backend com métricas |
+
+**Arquivos modificados:**
+
+| Arquivo | Alteração |
+|---|---|
+| `pom.xml` | 4 novas dependências + 1 repositório GitHub Packages |
+| `application.properties` | Endpoint prometheus + nishi-utils stats bridge |
+| `application-test.properties` | Idem |
+| `EndpointWrapper.java` | Import ProxyMetrics/CBManager, construtor atualizado, instrumentação inbound handlers |
+| `HttpProxyManager.java` | Import ProxyMetrics/CBManager, construtor atualizado, upstream metrics + CB wrapping |
+| `EndpointManager.java` | @Autowired ProxyMetrics + CBManager, propagação via construtor |
+| `ClusterService.java` | @Autowired MeterRegistry, Gauges de cluster (active_members, is_leader) |
+| `ServerConfiguration.java` | Campo `circuitBreaker` + getter/setter |
+| `adapter.yaml` | Bloco `circuitBreaker:` comentado |
+
+**Build:** `mvn clean compile -DskipTests` ✅ (59 classes compiladas)
+
+**Testes de integração (validados na continuação):**
+
+| Classe de Teste | # Testes | Status |
+|---|---|---|
+| `PrometheusMetricsIntegrationTest` | 4 | ✅ Todos passando |
+| `CircuitBreakerIntegrationTest` | 4 | ✅ Todos passando |
+
+**Detalhes dos testes Prometheus:**
+
+| Teste | Descrição | Status |
+|---|---|---|
+| T1 | `/actuator/prometheus` retorna 200 com métricas JVM | ✅ |
+| T2 | `ngate_requests_total` incrementa após tráfego | ✅ |
+| T3 | Métricas upstream (requests, duration) presentes | ✅ |
+| T4 | Métricas Resilience4j circuit breaker presentes | ✅ |
+
+**Detalhes dos testes Circuit Breaker:**
+
+| Teste | Descrição | Status |
+|---|---|---|
+| T1 | CLOSED — backend saudável retorna 200, sem header CB | ✅ |
+| T2 | OPEN — após falhas, 503 com `x-circuit-breaker: OPEN` | ✅ |
+| T3 | HALF_OPEN — transição após `waitDuration` (5s) | ✅ |
+| T4 | Backend saudável não afetado (isolamento de CBs por backend) | ✅ |
+
+**Bugs corrigidos durante validação:**
+
+1. **Campo `enabled` final:** O campo `BackendCircuitBreakerManager.enabled` era `private final boolean enabled = false` — nunca atualizado pelo `configure()`. Fix: `volatile boolean`, atualizado para `true` no `configure()`.
+2. **Nome 'default' reservado:** `registry.addConfiguration("default", config)` lança `IllegalArgumentException` no Resilience4j. Fix: `CircuitBreakerRegistry.of(customConfig)` — recria registry com config customizada.
+3. **Startup configure:** `circuitBreakerManager.configure()` nunca era chamado — CB sempre usava defaults do Resilience4j. Fix: `@Autowired` + chamada no `ConfigurationManager.onStartup()`.
+
+**Arquivos novos (testes):**
+
+| Arquivo | Descrição |
+|---|---|
+| `PrometheusMetricsIntegrationTest.java` | Testcontainers: 4 testes Prometheus/Micrometer |
+| `CircuitBreakerIntegrationTest.java` | Testcontainers: 4 testes CB CLOSED/OPEN/HALF_OPEN |
+| `adapter-test-metrics.yaml` | Config teste: 2 listeners (saudável + failing), CB habilitado |
+| `mock-backend-cb.conf` | Nginx config com /error endpoint para testes CB |
+
+**Commits:**
+
+```
+a4b1e77 feat: add Prometheus metrics instrumentation (Micrometer)
+86af418 feat: add backend circuit breaker (Resilience4j + Micrometer)
+eca0752 fix: load circuit breaker config from adapter.yaml on startup
+c0bb6f5 docs: add circuit breaker config block to adapter.yaml example
+25ef02a test: add Prometheus metrics and circuit breaker integration tests
+```
+
+**Sessão 5 — COMPLETA ✅**
+
