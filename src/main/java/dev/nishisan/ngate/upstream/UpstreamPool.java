@@ -17,7 +17,7 @@
 package dev.nishisan.ngate.upstream;
 
 import dev.nishisan.ngate.configuration.BackendConfiguration;
-import dev.nishisan.ngate.configuration.UpstreamMemberConfiguration;
+import dev.nishisan.ngate.configuration.UpstreamHealthCheckConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -49,6 +49,7 @@ public class UpstreamPool {
     private final String backendName;
     private final String strategy;
     private final List<UpstreamMemberState> allMembers;
+    private final UpstreamHealthCheckConfiguration healthCheckConfig;
 
     /**
      * Membros agrupados por prioridade (TreeMap para ordem natural).
@@ -65,6 +66,7 @@ public class UpstreamPool {
     public UpstreamPool(BackendConfiguration config) {
         this.backendName = config.getBackendName();
         this.strategy = config.getStrategy() != null ? config.getStrategy() : "round-robin";
+        this.healthCheckConfig = config.getHealthCheck();
 
         // Cria os estados dos membros
         this.allMembers = config.getMembers().stream()
@@ -206,5 +208,12 @@ public class UpstreamPool {
      */
     public long availableCount() {
         return allMembers.stream().filter(UpstreamMemberState::isAvailable).count();
+    }
+
+    /**
+     * @return configuração do health check, ou null se não configurado
+     */
+    public UpstreamHealthCheckConfiguration getHealthCheckConfig() {
+        return healthCheckConfig;
     }
 }
