@@ -149,4 +149,26 @@ public class ProxyMetrics {
                         .register(registry)
         ).increment();
     }
+
+    // ─── Rate Limit Metrics ─────────────────────────────────────────────
+
+    /**
+     * Registra um evento de rate limiting.
+     *
+     * @param scope  escopo da avaliação (ex: "listener", "route", "backend")
+     * @param zone   nome da zona de rate limiting
+     * @param result resultado: "ALLOWED", "REJECTED" ou "DELAYED"
+     */
+    public void recordRateLimitEvent(String scope, String zone, String result) {
+        String key = "ratelimit:" + scope + ":" + zone + ":" + result;
+        counterCache.computeIfAbsent(key, k ->
+                Counter.builder("ngate.ratelimit.total")
+                        .description("Total rate limiting events")
+                        .tag("scope", scope)
+                        .tag("zone", zone)
+                        .tag("result", result)
+                        .register(registry)
+        ).increment();
+    }
 }
+

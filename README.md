@@ -1,6 +1,6 @@
 # n-gate
 
-> API Gateway & Reverse Proxy de alta performance com motor de regras dinâmicas Groovy, observabilidade integrada (Zipkin) e autenticação OAuth2/JWT — construído em Java 21.
+> API Gateway & Reverse Proxy de alta performance com motor de regras dinâmicas Groovy, cluster mode (NGrid), circuit breaker, observabilidade integrada (Zipkin + Prometheus) e autenticação OAuth2/JWT — construído em Java 21.
 
 [![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)](https://openjdk.org/projects/jdk/21/)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
@@ -35,6 +35,12 @@ O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre s
 | **Múltiplos Listeners** | Portas independentes com configurações de segurança distintas |
 | **Connection Pooling** | OkHttp ConnectionPool + Dispatcher com Virtual Threads (Java 21) |
 | **Async Logging** | Log4j2 + LMAX Disruptor para logging fora do hot path |
+| **Cluster Mode** | NGrid mesh TCP com leader election e DistributedMap para coordenação entre instâncias |
+| **Token Sharing** | Tokens OAuth2 compartilhados via POW-RBL (Publish-on-write + Read-before-login) |
+| **Rules Deploy** | Deploy atômico de scripts Groovy via Admin API (`POST /admin/rules/deploy`) com replicação cluster |
+| **Circuit Breaker** | Resilience4j por backend — CLOSED/OPEN/HALF_OPEN com métricas Micrometer |
+| **Métricas Prometheus** | Counters/timers inbound e upstream via `/actuator/prometheus` |
+| **Health Check** | Spring Boot Actuator com status de cluster, circuit breaker e instance ID |
 
 ---
 
@@ -66,6 +72,28 @@ O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre s
 
 ![Arquitetura n-gate](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/architecture.puml)
 
+### Topologia Cluster
+
+```
+                     ┌─────────────────────────────────────────────┐
+ Client ────────────▶│          nginx Load Balancer (:5080)        │
+                     └──────┬──────────┬──────────┬───────────────┘
+                            │          │          │
+                     ┌──────▼───┐ ┌────▼─────┐ ┌─▼────────┐
+                     │ n-gate-1 │ │ n-gate-2 │ │ n-gate-3 │
+                     │  :9091   │ │  :9091   │ │  :9091   │
+                     │  :9190   │ │  :9190   │ │  :9190   │
+                     │  :7100 ◄─┼─► :7100 ◄─┼─► :7100   │
+                     └──────┬───┘ └────┬─────┘ └─┬────────┘
+                            │   NGrid Mesh (TCP) │
+                            │          │          │
+                     ┌──────▼──────────▼──────────▼──────────┐
+                     │  DistributedMap: tokens + rules       │
+                     └───────────────────────────────────────┘
+```
+
+![Topologia Cluster](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/cluster_topology.puml)
+
 Para detalhes, veja [docs/architecture.md](docs/architecture.md).
 
 ---
@@ -77,7 +105,7 @@ Para detalhes, veja [docs/architecture.md](docs/architecture.md).
 - Docker
 - Docker Compose (plugin `docker compose`)
 
-### Subir o ambiente
+### Subir o ambiente (standalone)
 
 ```bash
 docker compose up --build
@@ -87,6 +115,18 @@ Background:
 
 ```bash
 docker compose up --build -d
+```
+
+### Subir como Cluster (3 nós + LB)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.cluster.yml up --build -d
+```
+
+Para bench mode (sem tracing, log INFO):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.bench.yml -f docker-compose.cluster.yml up --build -d
 ```
 
 Parar:
@@ -101,11 +141,17 @@ docker compose down
 |---------|:-----:|-----------| 
 | `n-gate` | `9090` | Proxy principal (com auth OAuth ao upstream) |
 | `n-gate` | `9091` | Proxy benchmark (sem auth, upstream estático) |
-| `n-gate` | `18080` | Spring Boot / diagnóstico |
+| `n-gate` | `9190` | Actuator (health, prometheus, admin API) |
 | `keycloak` | `8081` | SSO / Identity Provider |
 | `zipkin` | `9411` | Distributed Tracing UI |
 | `static-backend` | `3080` | Nginx com JSON fixo (benchmark) |
 | `benchmark-ui` | `8000` | UI web para benchmarks |
+| **Cluster Mode** | | |
+| `nginx-cluster-lb` | `5080` | LB round-robin → 3 nós n-gate |
+| `ngate-node1` | `9191` | Nó 1 proxy (listener http-noauth) |
+| `ngate-node2` | `9192` | Nó 2 proxy |
+| `ngate-node3` | `9193` | Nó 3 proxy |
+| `ngate-node*` | `7100` | NGrid mesh (interno, inter-nó) |
 
 ### Teste rápido
 
@@ -155,6 +201,12 @@ docker compose up -d
 
 # Bench
 docker compose -f docker-compose.yml -f docker-compose.bench.yml up -d
+
+# Cluster (3 nós NGrid + LB)
+docker compose -f docker-compose.yml -f docker-compose.cluster.yml up -d
+
+# Cluster + Bench
+docker compose -f docker-compose.yml -f docker-compose.bench.yml -f docker-compose.cluster.yml up -d
 ```
 
 ---
@@ -177,12 +229,13 @@ O script faz warmup, roda testes com concorrência 1/10/50, e gera relatório co
 
 | Documento | Conteúdo |
 |-----------|----------|
-| [Arquitetura](docs/architecture.md) | Componentes internos, fluxo de request, modelo de threading |
-| [Configuração](docs/configuration.md) | Referência completa do `adapter.yaml` |
+| [Arquitetura](docs/architecture.md) | Componentes internos, cluster mode, fluxo de request, modelo de threading |
+| [Configuração](docs/configuration.md) | Referência completa do `adapter.yaml` (cluster, admin, circuit breaker) |
 | [Regras Groovy](docs/groovy_rules.md) | Como escrever regras, API, exemplos práticos |
 | [Segurança](docs/security.md) | JWT, OAuth2, políticas de autenticação |
 | [Casos de Uso](docs/use_cases.md) | Cenários end-to-end com configuração e comandos |
-| [Observabilidade](docs/observability.md) | Spans, tracing, propagação B3, Zipkin |
+| [Observabilidade](docs/observability.md) | Spans, tracing, métricas Prometheus, circuit breaker |
+| [Testes de Cluster](docs/cluster_integration_tests.md) | Testes de integração Docker do cluster NGrid |
 
 ---
 
@@ -191,10 +244,13 @@ O script faz warmup, roda testes com concorrência 1/10/50, e gera relatório co
 | Componente | Versão | Função |
 |------------|--------|--------|
 | Java (OpenJDK) | 21 | Runtime com Virtual Threads |
-| Spring Boot | 3.5.6 | Contexto e configuração |
+| Spring Boot | 3.5.6 | Contexto, configuração e Actuator |
 | Javalin | 7.0.1 | HTTP Framework (Jetty 12) |
 | OkHttp | 4.12.0 | HTTP Client para backends |
 | Groovy | 3.0.12 | Motor de regras dinâmicas |
+| NGrid (nishi-utils) | 3.1.0 | Cluster: mesh TCP, leader election, DistributedMap |
+| Resilience4j | 2.2.0 | Circuit breaker para proteção de backends |
+| Micrometer | — | Métricas Prometheus (via Spring Boot Actuator) |
 | Brave | 6.0.3 | Instrumentação de tracing |
 | Zipkin Reporter | 3.4.0 | Envio assíncrono de spans |
 | Log4j2 | — | Logging com LMAX Disruptor |
@@ -210,16 +266,19 @@ O script faz warmup, roda testes com concorrência 1/10/50, e gera relatório co
 ```
 n-gate/
 ├── config/
-│   └── adapter.yaml          # Configuração principal
+│   ├── adapter.yaml           # Configuração principal (standalone)
+│   └── adapter-cluster.yaml   # Configuração cluster (3 nós)
 ├── rules/
 │   └── default/
 │       └── Rules.groovy       # Script Groovy de regras
 ├── custom/                    # Scripts de decoders customizados
 ├── compose/                   # Configs Docker (Keycloak, Nginx, etc.)
+│   └── nginx-cluster/         # Config nginx LB para cluster
 ├── docs/                      # Documentação técnica
-│   ├── diagrams/              # Diagramas PlantUML
+│   ├── diagrams/              # Diagramas PlantUML (C4)
 │   ├── architecture.md
 │   ├── configuration.md
+│   ├── cluster_integration_tests.md
 │   ├── groovy_rules.md
 │   ├── security.md
 │   ├── use_cases.md
@@ -228,14 +287,17 @@ n-gate/
 │   └── benchmark.py           # Script de benchmark
 ├── src/main/java/dev/nishisan/ngate/
 │   ├── auth/                  # JWT, OAuth, Token Decoders
+│   ├── cluster/               # ClusterService (NGrid lifecycle)
 │   ├── configuration/         # POJOs de configuração (adapter.yaml)
 │   ├── groovy/                # Bindings protegidos para Groovy
 │   ├── http/                  # Core: proxy, workload, adapters
+│   │   └── circuit/           # BackendCircuitBreakerManager
 │   ├── manager/               # Gerenciadores de config e endpoints
-│   └── observabitliy/         # TracerService, SpanWrapper
+│   └── observabitliy/         # TracerService, SpanWrapper, ProxyMetrics
 ├── ssl/                       # Keystores SSL
-├── docker-compose.yml         # Ambiente dev
+├── docker-compose.yml         # Ambiente dev (standalone)
 ├── docker-compose.bench.yml   # Override benchmark
+├── docker-compose.cluster.yml # Cluster: 3 nós + nginx LB
 └── pom.xml                    # Maven build
 ```
 

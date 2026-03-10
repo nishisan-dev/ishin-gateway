@@ -95,4 +95,15 @@ public class BackendConfiguration {
     public void setxOriginalHost(String xOriginalHost) {
         this.xOriginalHost = xOriginalHost;
     }
+
+    private RateLimitRefConfiguration rateLimit;
+
+    public RateLimitRefConfiguration getRateLimit() {
+        return rateLimit;
+    }
+
+    public void setRateLimit(RateLimitRefConfiguration rateLimit) {
+        this.rateLimit = rateLimit;
+    }
 }
+

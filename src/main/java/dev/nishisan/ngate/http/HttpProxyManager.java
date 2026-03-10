@@ -27,6 +27,8 @@ import dev.nishisan.ngate.configuration.EndPointConfiguration;
 import dev.nishisan.ngate.configuration.EndPointListenersConfiguration;
 import dev.nishisan.ngate.groovy.ProtectedBinding;
 import dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager;
+import dev.nishisan.ngate.http.ratelimit.RateLimitManager;
+import dev.nishisan.ngate.http.ratelimit.RateLimitResult;
 import dev.nishisan.ngate.observabitliy.ProxyMetrics;
 import dev.nishisan.ngate.observabitliy.wrappers.SpanWrapper;
 import dev.nishisan.ngate.observabitliy.wrappers.TracerWrapper;
@@ -129,6 +131,7 @@ public class HttpProxyManager {
     private final SynthHttpResponseAdapter okHttpResponseAdapter = new SynthHttpResponseAdapter();
     private final ProxyMetrics proxyMetrics;
     private final BackendCircuitBreakerManager circuitBreakerManager;
+    private final RateLimitManager rateLimitManager;
     private Cache<String, OkHttpClient> transientClients;
 
     // Connection pool compartilhado entre todos os OkHttpClients (configurável via adapter.yaml)
@@ -137,11 +140,12 @@ public class HttpProxyManager {
     // Dispatcher compartilhado com Virtual Threads (Java 21)
     private final Dispatcher sharedDispatcher;
 
-    public HttpProxyManager(OAuthClientManager oauthManager, EndPointConfiguration configuration, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager) {
+    public HttpProxyManager(OAuthClientManager oauthManager, EndPointConfiguration configuration, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager, RateLimitManager rateLimitManager) {
         this.configuration = configuration;
         this.oauthManager = oauthManager;
         this.proxyMetrics = proxyMetrics;
         this.circuitBreakerManager = circuitBreakerManager;
+        this.rateLimitManager = rateLimitManager;
         this.sharedConnectionPool = new ConnectionPool(
                 configuration.getConnectionPoolSize(),
                 configuration.getConnectionPoolKeepAliveMinutes(),
@@ -548,6 +552,35 @@ public class HttpProxyManager {
                     handler.header("x-generic-id", listenerName);
                     handler.result("Backend not configured: " + backendname);
                     return;
+                }
+
+                // ─── Rate Limit: Backend level ───────────────────────────────
+                if (rateLimitManager != null && rateLimitManager.isEnabled()
+                        && backendConfiguration.getRateLimit() != null) {
+                    RateLimitResult rlResult = rateLimitManager.acquirePermission(
+                            "backend:" + backendname, backendConfiguration.getRateLimit());
+                    requestRootSpan.tag("rate.limit.backend", rlResult.name());
+                    if (proxyMetrics != null) {
+                        proxyMetrics.recordRateLimitEvent("backend",
+                                backendConfiguration.getRateLimit().getZone(), rlResult.name());
+                    }
+                    if (rlResult == RateLimitResult.REJECTED) {
+                        logger.debug("Rate limit REJECTED for backend [{}]", backendname);
+                        handler.status(429);
+                        handler.header("x-rate-limit", "REJECTED");
+                        handler.header("x-rate-limit-scope", "backend");
+                        handler.header("x-rate-limit-zone", backendConfiguration.getRateLimit().getZone());
+                        handler.header("x-upstream-id", backendname);
+                        handler.header("Retry-After",
+                                String.valueOf(rateLimitManager.getZoneTimeoutSeconds(
+                                        backendConfiguration.getRateLimit().getZone())));
+                        handler.result("Too Many Requests — rate limit for backend " + backendname);
+                        return;
+                    }
+                    if (rlResult == RateLimitResult.DELAYED) {
+                        handler.header("x-rate-limit", "DELAYED");
+                        handler.header("x-rate-limit-scope", "backend");
+                    }
                 }
 
                 Request req = this.httpRequestAdapter.getRequest(backendConfiguration, w, internalUid);
