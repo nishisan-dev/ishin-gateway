@@ -311,6 +311,31 @@
             <artifactId>nishi-utils</artifactId>
             <version>3.1.0</version>
         </dependency>
+
+        <!-- nishi-utils-spring: bridge StatsUtils → Micrometer -->
+        <dependency>
+            <groupId>dev.nishisan</groupId>
+            <artifactId>nishi-utils-spring</artifactId>
+            <version>1.0.2</version>
+        </dependency>
+
+        <!-- Micrometer Prometheus registry: /actuator/prometheus endpoint -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!-- Resilience4j: circuit breaker for backend protection -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-circuitbreaker</artifactId>
+            <version>2.2.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-micrometer</artifactId>
+            <version>2.2.0</version>
+        </dependency>
     </dependencies>
     <!-- 
      Parte que Cuida de Criar o Jar, com o main class e o manifest e criar a pasta lib
@@ -362,6 +387,10 @@
         <repository>
             <id>github</id>
             <url>https://maven.pkg.github.com/nishisan-dev/nishi-utils</url>
+        </repository>
+        <repository>
+            <id>github-nishi-utils-spring</id>
+            <url>https://maven.pkg.github.com/nishisan-dev/nishi-utils-spring</url>
         </repository>
     </repositories>
 
