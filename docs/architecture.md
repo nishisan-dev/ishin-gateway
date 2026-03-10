@@ -11,6 +11,7 @@ O n-gate é um API Gateway/Reverse Proxy construído sobre uma stack de alta per
 - **NGrid** (nishi-utils) para cluster mode com mesh TCP, leader election e DistributedMap
 - **Resilience4j** para circuit breaker por backend
 - **Rate Limiting** engine baseada em Semaphore com modos stall/nowait
+- **Upstream Pool** com load balancing (round-robin/failover/random), priority groups e health checks ativos via Virtual Threads
 - **Micrometer** para métricas Prometheus via Spring Boot Actuator
 - **Spring Boot 3.5** para gerenciamento de configuração e ciclo de vida
 
@@ -48,8 +49,18 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
   1. Avalia regras Groovy (`evalDynamicRules`)
   2. Resolve o backend de destino
   3. Aplica rate limiting outbound (backend)
-  4. Monta e executa o request upstream via OkHttp
-  5. Processa a resposta via `HttpResponseAdapter`
+  4. Seleciona membro upstream via `UpstreamPoolManager`
+  5. Monta e executa o request upstream via OkHttp
+  6. Processa a resposta via `HttpResponseAdapter`
+
+### 4.5. UpstreamPoolManager
+
+- **Classe:** `dev.nishisan.ngate.upstream.UpstreamPoolManager`
+- **Responsabilidade:** Gerencia instâncias de `UpstreamPool` por backend. Ponto de entrada para seleção de membros upstream:
+  - `selectMember(backendName)` — seleciona o próximo membro saudável via strategy do pool
+  - `initialize(backends)` — cria pools a partir da configuração de backends
+- **Dependências:** `UpstreamPool` (por backend), `UpstreamMemberState` (por membro), `UpstreamHealthChecker` (probing)
+- **Documentação:** [upstream-pool.md](upstream-pool.md)
 
 ### 4. HttpWorkLoad
 
@@ -119,15 +130,17 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 6. **Regras Groovy** — `HttpProxyManager.evalDynamicRules()` executa os scripts do diretório `rules/`
 7. **Resolução de Backend** — Backend definido pela regra ou pelo `defaultBackend` do listener
 8. **Rate Limit Outbound** — Verifica rate limiting no escopo backend (HTTP 429 se rejeitado)
-9. **Request Upstream** — OkHttp monta e executa o request, com:
-   - Injeção de headers B3 (tracing)
-   - Injeção de `Authorization: Bearer` (se backend tem OAuth config)
-10. **Response Adapter** — `HttpResponseAdapter.writeResponse()` converte a resposta:
+9. **Upstream Pool Selection** — `UpstreamPoolManager.selectMember(backendName)` seleciona um membro saudável do pool (strategy + priority groups). Se nenhum membro disponível → **503 Service Unavailable** com header `x-upstream-pool`
+10. **Request Upstream** — OkHttp monta e executa o request para a URL do membro selecionado, com:
+    - Injeção de headers B3 (tracing)
+    - Injeção de `Authorization: Bearer` (se backend tem OAuth config)
+    - Tag `upstream-member-url` no span de tracing
+11. **Response Adapter** — `HttpResponseAdapter.writeResponse()` converte a resposta:
     - Executa response processors (closures Groovy)
     - Copia headers e status
     - Faz streaming (`returnPipe`) ou materialização
-11. **Resposta ao Cliente** — Status, headers e body enviados. Header `x-trace-id` adicionado.
-12. **Root Span Finalizado** — Tag `http.status_code` adicionada, span fechado.
+12. **Resposta ao Cliente** — Status, headers e body enviados. Header `x-trace-id` adicionado.
+13. **Root Span Finalizado** — Tag `http.status_code` adicionada, span fechado.
 
 ---
 
@@ -216,6 +229,7 @@ workload.returnPipe = false  // materializa para permitir inspeção
 | `dev.nishisan.ngate.http.clients` | Utilitários de HTTP client |
 | `dev.nishisan.ngate.http.synth` | Respostas HTTP sintéticas |
 | `dev.nishisan.ngate.manager` | Gerenciadores de configuração e endpoints |
+| `dev.nishisan.ngate.upstream` | Upstream Pool: `UpstreamPoolManager`, `UpstreamPool`, `UpstreamMemberState`, `UpstreamHealthChecker` |
 | `dev.nishisan.ngate.observabitliy` | TracerService, SpanWrapper, TracerWrapper, ProxyMetrics |
 
 ---

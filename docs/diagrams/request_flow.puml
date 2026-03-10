@@ -9,6 +9,7 @@ actor "Cliente" as client
 participant "Javalin\n(Jetty 12)" as javalin
 participant "Token\nDecoder" as decoder
 participant "Groovy\nRules" as groovy
+participant "Upstream\nPoolManager" as poolmgr
 participant "OkHttp\nClient" as okhttp
 participant "Response\nAdapter" as response
 participant "Backend" as backend
@@ -49,21 +50,31 @@ deactivate groovy
 alt Resposta Sintética
     javalin -> response : handleResponse(workload)
 else Proxy Normal
-    javalin -> okhttp : newCall(request).execute()
-    activate okhttp
-    note right: Span: **upstream-request** (CLIENT)\nInject B3 headers
+    javalin -> poolmgr : selectMember(backendName)
+    activate poolmgr
+    note right: Priority groups + strategy\n(round-robin / failover / random)
+    poolmgr --> javalin : Optional<MemberState>
+    deactivate poolmgr
 
-    alt Backend com OAuth
-        okhttp -> okhttp : Interceptor: inject\nAuthorization: Bearer ***
+    alt Nenhum membro disponível
+        javalin --> client : HTTP 503\nx-upstream-pool: backendName
+    else Membro selecionado
+        javalin -> okhttp : newCall(memberUrl + path).execute()
+        activate okhttp
+        note right: Span: **upstream-request** (CLIENT)\nInject B3 headers\nTag: upstream-member-url
+
+        alt Backend com OAuth
+            okhttp -> okhttp : Interceptor: inject\nAuthorization: Bearer ***
+        end
+
+        okhttp -> backend : HTTP Request + B3 + Bearer
+        activate backend
+        backend --> okhttp : HTTP Response
+        deactivate backend
+
+        okhttp --> javalin : Response
+        deactivate okhttp
     end
-
-    okhttp -> backend : HTTP Request + B3 + Bearer
-    activate backend
-    backend --> okhttp : HTTP Response
-    deactivate backend
-
-    okhttp --> javalin : Response
-    deactivate okhttp
 end
 
 == Response Processing ==

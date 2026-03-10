@@ -93,15 +93,36 @@ Cada URL Context define um padrão de rota e seu comportamento:
 
 ## Backends
 
-Cada backend representa um serviço de destino para onde o n-gate encaminha requests.
+Cada backend representa um serviço de destino com upstream pool para onde o n-gate encaminha requests. A partir da v3.0, backends usam a lista `members` para definir servidores reais, com balanceamento de carga e health checks opcionais.
+
+> [!IMPORTANT]
+> **API BREAKER v3.0:** O campo `endPointUrl` foi removido. Todos os backends devem usar `members`.
+
+Para documentação detalhada do upstream pool, veja [docs/upstream-pool.md](upstream-pool.md).
 
 ```yaml
 backends:
   <nome-do-backend>:
-    backendName: "keycloak"
-    xOriginalHost: null
-    endPointUrl: "http://keycloak:8080"
-    oauthClientConfig:             # Opcional: credenciais OAuth2
+    backendName: "my-api"
+    strategy: "round-robin"          # round-robin | failover | random
+    members:
+      - url: "http://server1:8080"
+        priority: 1                  # 1 = mais prioritário (default: 1)
+        weight: 3                    # peso no round-robin (default: 1)
+      - url: "http://server2:8080"
+        priority: 1
+        weight: 1
+      - url: "http://backup:8080"
+        priority: 2                  # só usado se tier 1 estiver 100% down
+        enabled: true                # pode desabilitar sem remover (default: true)
+    healthCheck:
+      enabled: true
+      path: "/health"
+      intervalSeconds: 10
+      timeoutMs: 3000
+      unhealthyThreshold: 3
+      healthyThreshold: 2
+    oauthClientConfig:               # Opcional: credenciais OAuth2
       ssoName: "inventory-keycloak"
       clientId: "ngate-client"
       clientSecret: "ngate-secret"
@@ -122,10 +143,32 @@ backends:
 | Campo | Tipo | Default | Descrição |
 |-------|------|---------|-----------|
 | `backendName` | String | — | Identificador do backend |
-| `xOriginalHost` | String | `null` | Header `X-Original-Host` a ser injetado |
-| `endPointUrl` | String | — | URL base do backend (incluindo scheme e porta) |
+| `members` | List | `[]` | Lista de membros upstream (obrigatório, mínimo 1) |
+| `strategy` | String | `"round-robin"` | Estratégia de balanceamento: `round-robin`, `failover`, `random` |
+| `healthCheck` | Object | `null` | Configuração do health check ativo (opcional) |
+| `defaultHeaders` | Map | `{}` | Headers padrão injetados nos requests ao backend |
 | `oauthClientConfig` | Object | `null` | Se presente, habilita autenticação OAuth2 automática |
 | `rateLimit` | Object | `null` | Referência a uma zona de rate limiting por backend |
+
+### Campos de Member (`members[]`)
+
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `url` | String | — | URL completa do membro (ex: `http://10.0.0.1:8080`) |
+| `priority` | Integer | `1` | Prioridade (1 = mais prioritário). Fallback para próximo tier quando todos do atual estão DOWN |
+| `weight` | Integer | `1` | Peso relativo no round-robin/random. `weight=5` recebe ~5x mais requests que `weight=1` |
+| `enabled` | Boolean | `true` | Se `false`, membro é ignorado (equivalente a `down` no NGINX) |
+
+### Campos do Health Check (`healthCheck`)
+
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `enabled` | Boolean | `false` | Habilita health check ativo |
+| `path` | String | `"/health"` | Path HTTP para o probe |
+| `intervalSeconds` | Integer | `10` | Intervalo entre probes (segundos) |
+| `timeoutMs` | Integer | `3000` | Timeout do probe HTTP (milissegundos) |
+| `unhealthyThreshold` | Integer | `3` | Falhas consecutivas para marcar DOWN |
+| `healthyThreshold` | Integer | `2` | Sucessos consecutivos para marcar UP |
 
 ### OAuth Client Config
 
@@ -440,7 +483,8 @@ endpoints:
     backends:
       my-api:
         backendName: "my-api"
-        endPointUrl: "http://api-server:3000"
+        members:
+          - url: "http://api-server:3000"
 
     ruleMapping: "default/Rules.groovy"
     ruleMappingThreads: 1
@@ -503,11 +547,13 @@ endpoints:
     backends:
       public-api:
         backendName: "public-api"
-        endPointUrl: "http://public-service:3000"
+        members:
+          - url: "http://public-service:3000"
 
       private-api:
         backendName: "private-api"
-        endPointUrl: "https://private-service:8443"
+        members:
+          - url: "https://private-service:8443"
         oauthClientConfig:
           ssoName: "private-sso"
           clientId: "gateway-client"
@@ -556,7 +602,8 @@ endpoints:
     backends:
       static-backend:
         backendName: "static-backend"
-        endPointUrl: "http://static-backend:8080"
+        members:
+          - url: "http://static-backend:8080"
 
     ruleMapping: "default/Rules.groovy"
     ruleMappingThreads: 1

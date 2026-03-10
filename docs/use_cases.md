@@ -35,7 +35,8 @@ endpoints:
     backends:
       my-api:
         backendName: "my-api"
-        endPointUrl: "http://api-server:3000"
+        members:
+          - url: "http://api-server:3000"
 
     ruleMapping: "default/Rules.groovy"
     ruleMappingThreads: 1
@@ -100,15 +101,18 @@ endpoints:
     backends:
       users-service:
         backendName: "users-service"
-        endPointUrl: "http://users-service:3001"
+        members:
+          - url: "http://users-service:3001"
 
       products-service:
         backendName: "products-service"
-        endPointUrl: "http://products-service:3002"
+        members:
+          - url: "http://products-service:3002"
 
       orders-service:
         backendName: "orders-service"
-        endPointUrl: "http://orders-service:3003"
+        members:
+          - url: "http://orders-service:3003"
 
     ruleMapping: "default/Rules.groovy"
     ruleMappingThreads: 1
@@ -190,7 +194,8 @@ endpoints:
     backends:
       protected-api:
         backendName: "protected-api"
-        endPointUrl: "http://backend:3000"
+        members:
+          - url: "http://backend:3000"
         oauthClientConfig:
           ssoName: "backend-sso"
           clientId: "gateway-client"
@@ -421,7 +426,8 @@ listeners:
 backends:
   static-backend:
     backendName: "static-backend"
-    endPointUrl: "http://static-backend:8080"
+    members:
+      - url: "http://static-backend:8080"
 ```
 
 ### Executar
@@ -559,7 +565,8 @@ endpoints:
     backends:
       static-backend:
         backendName: "static-backend"
-        endPointUrl: "http://static-backend:8080"
+        members:
+          - url: "http://static-backend:8080"
 
     ruleMapping: "default/Rules.groovy"
     ruleMappingThreads: 1

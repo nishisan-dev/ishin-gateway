@@ -119,7 +119,8 @@ Contém child spans `rules-execution` para cada script executado.
 
 **Tags:**
 - `upstream-client-name` — Nome do backend configurado
-- `upstream-req-url` — URL do request ao backend
+- `upstream-member-url` — URL do membro selecionado pelo upstream pool
+- `upstream-req-url` — URL completa do request ao backend (membro + path)
 - `upstream-req-method` — Método HTTP usado
 - `upstream.status_code` — Status code retornado pelo backend
 - `upstream.content_type` — Content-Type da resposta do backend

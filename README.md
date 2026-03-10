@@ -40,6 +40,7 @@ O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre s
 | **Rules Deploy** | Deploy atômico de scripts Groovy via Admin API (`POST /admin/rules/deploy`) com replicação cluster |
 | **Circuit Breaker** | Resilience4j por backend — CLOSED/OPEN/HALF_OPEN com métricas Micrometer |
 | **Rate Limiting** | Controle de taxa por listener, rota e backend com modos `stall` (delay) e `nowait` (429 imediato) |
+| **Upstream Pool** | Load balancing (round-robin/failover/random) com priority groups, health checks ativos via Virtual Threads e failover automático |
 | **Métricas Prometheus** | Counters/timers inbound e upstream via `/actuator/prometheus` |
 | **Health Check** | Spring Boot Actuator com status de cluster, circuit breaker e instance ID |
 
@@ -237,6 +238,7 @@ O script faz warmup, roda testes com concorrência 1/10/50, e gera relatório co
 | [Casos de Uso](docs/use_cases.md) | Cenários end-to-end com configuração e comandos |
 | [Observabilidade](docs/observability.md) | Spans, tracing, métricas Prometheus, circuit breaker |
 | [Rate Limiting](docs/rate-limiting.md) | Modos stall/nowait, zonas, configuração por escopo, métricas |
+| [Upstream Pool](docs/upstream-pool.md) | Load balancing, priority groups, health checks ativos, estratégias |
 | [Testes de Cluster](docs/cluster_integration_tests.md) | Testes de integração Docker do cluster NGrid |
 
 ---
@@ -296,6 +298,7 @@ n-gate/
 │   │   ├── circuit/           # BackendCircuitBreakerManager
 │   │   └── ratelimit/         # RateLimitManager, RateLimitResult
 │   ├── manager/               # Gerenciadores de config e endpoints
+│   ├── upstream/              # UpstreamPool, UpstreamPoolManager, HealthChecker
 │   └── observabitliy/         # TracerService, SpanWrapper, ProxyMetrics
 ├── ssl/                       # Keystores SSL
 ├── docker-compose.yml         # Ambiente dev (standalone)

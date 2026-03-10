@@ -134,7 +134,8 @@ Para que o n-gate injete automaticamente tokens OAuth2 nos requests ao backend:
 backends:
   my-api:
     backendName: "my-api"
-    endPointUrl: "https://api.example.com"
+    members:
+      - url: "https://api.example.com"
     oauthClientConfig:
       ssoName: "my-sso"
       clientId: "gateway-client"
