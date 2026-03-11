@@ -1,0 +1,3 @@
+[submodule "n-gate-test-case"]
+	path = n-gate-test-case
+	url = git@github.com:nishisan-dev/n-gate-test-case.git
