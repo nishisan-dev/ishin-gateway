@@ -32,6 +32,7 @@ import dev.nishisan.ngate.http.ratelimit.RateLimitResult;
 import dev.nishisan.ngate.observability.ProxyMetrics;
 import dev.nishisan.ngate.observability.wrappers.SpanWrapper;
 import dev.nishisan.ngate.observability.wrappers.TracerWrapper;
+import dev.nishisan.ngate.upstream.PassiveHealthChecker;
 import dev.nishisan.ngate.upstream.UpstreamMemberState;
 import dev.nishisan.ngate.upstream.UpstreamPoolManager;
 import groovy.json.JsonSlurper;
@@ -136,6 +137,7 @@ public class HttpProxyManager {
     private final BackendCircuitBreakerManager circuitBreakerManager;
     private final RateLimitManager rateLimitManager;
     private final UpstreamPoolManager upstreamPoolManager;
+    private final PassiveHealthChecker passiveHealthChecker;
     private Cache<String, OkHttpClient> transientClients;
 
     // Connection pool compartilhado entre todos os OkHttpClients (configurável via adapter.yaml)
@@ -144,13 +146,14 @@ public class HttpProxyManager {
     // Dispatcher compartilhado com Virtual Threads (Java 21)
     private final Dispatcher sharedDispatcher;
 
-    public HttpProxyManager(OAuthClientManager oauthManager, EndPointConfiguration configuration, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager, RateLimitManager rateLimitManager, UpstreamPoolManager upstreamPoolManager) {
+    public HttpProxyManager(OAuthClientManager oauthManager, EndPointConfiguration configuration, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager, RateLimitManager rateLimitManager, UpstreamPoolManager upstreamPoolManager, PassiveHealthChecker passiveHealthChecker) {
         this.configuration = configuration;
         this.oauthManager = oauthManager;
         this.proxyMetrics = proxyMetrics;
         this.circuitBreakerManager = circuitBreakerManager;
         this.rateLimitManager = rateLimitManager;
         this.upstreamPoolManager = upstreamPoolManager;
+        this.passiveHealthChecker = passiveHealthChecker;
         this.sharedConnectionPool = new ConnectionPool(
                 configuration.getConnectionPoolSize(),
                 configuration.getConnectionPoolKeepAliveMinutes(),
@@ -676,6 +679,11 @@ public class HttpProxyManager {
                         if (proxyMetrics != null) {
                             long upstreamDuration = System.currentTimeMillis() - start;
                             proxyMetrics.recordUpstreamRequest(backendname, handler.method().name(), res.code(), upstreamDuration);
+                        }
+
+                        // Passive health check: reporta status code observado
+                        if (passiveHealthChecker != null) {
+                            passiveHealthChecker.reportStatusCode(backendname, memberUrl, res.code());
                         }
 
                         /**

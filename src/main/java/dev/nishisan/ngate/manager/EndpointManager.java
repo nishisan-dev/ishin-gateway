@@ -22,6 +22,7 @@ import dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager;
 import dev.nishisan.ngate.http.ratelimit.RateLimitManager;
 import dev.nishisan.ngate.observability.ProxyMetrics;
 import dev.nishisan.ngate.observability.service.TracerService;
+import dev.nishisan.ngate.upstream.PassiveHealthChecker;
 import dev.nishisan.ngate.upstream.UpstreamHealthChecker;
 import dev.nishisan.ngate.upstream.UpstreamPoolManager;
 import groovy.util.GroovyScriptEngine;
@@ -83,6 +84,7 @@ public class EndpointManager {
     private UpstreamPoolManager upstreamPoolManager;
 
     private final UpstreamHealthChecker healthChecker = new UpstreamHealthChecker();
+    private final PassiveHealthChecker passiveHealthChecker = new PassiveHealthChecker();
 
     @Order(30)
     @EventListener(ApplicationReadyEvent.class)
@@ -92,6 +94,12 @@ public class EndpointManager {
             this.initUpstreamPools();
             this.initEndpoints();
             this.healthChecker.start(upstreamPoolManager);
+            // Passive health check: inicializa após pools e endpoints
+            this.configurationManager.loadConfiguration().getEndpoints().forEach((name, epConfig) -> {
+                if (epConfig.getBackends() != null && !epConfig.getBackends().isEmpty()) {
+                    this.passiveHealthChecker.start(upstreamPoolManager, epConfig.getBackends());
+                }
+            });
         } catch (Throwable ex) {
             logger.error("Failed To Start System, please check configuration and custom gse folder.", ex);
         }
@@ -105,7 +113,8 @@ public class EndpointManager {
     private void shutdown() {
         logger.info("n-gate graceful shutdown initiated...");
         healthChecker.stop();
-        logger.info("Health checker stopped. Stopping {} endpoint wrapper(s)...", activeWrappers.size());
+        passiveHealthChecker.stop();
+        logger.info("Health checkers stopped. Stopping {} endpoint wrapper(s)...", activeWrappers.size());
         for (EndpointWrapper wrapper : activeWrappers) {
             wrapper.stopAllListeners();
         }
@@ -136,7 +145,7 @@ public class EndpointManager {
         logger.debug("Starting Endpoints");
         logger.debug("Total endpoints size:[{}]", this.configurationManager.loadConfiguration().getEndpoints().size());
         this.configurationManager.loadConfiguration().getEndpoints().forEach((endpointName, endPoingConfiguration) -> {
-            EndpointWrapper wrapper = new EndpointWrapper(oAUthClient, endPoingConfiguration, customGse, tracerService, proxyMetrics, circuitBreakerManager, rateLimitManager, upstreamPoolManager);
+            EndpointWrapper wrapper = new EndpointWrapper(oAUthClient, endPoingConfiguration, customGse, tracerService, proxyMetrics, circuitBreakerManager, rateLimitManager, upstreamPoolManager, passiveHealthChecker);
             activeWrappers.add(wrapper);
 
             logger.debug("\t Setting UP Endpoing:[{}] With :[{}] listener(s)", endpointName, endPoingConfiguration.getListeners().size());

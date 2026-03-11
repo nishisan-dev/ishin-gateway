@@ -37,6 +37,7 @@ import dev.nishisan.ngate.observability.wrappers.TracerWrapper;
 import dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager;
 import dev.nishisan.ngate.http.ratelimit.RateLimitManager;
 import dev.nishisan.ngate.http.ratelimit.RateLimitResult;
+import dev.nishisan.ngate.upstream.PassiveHealthChecker;
 import dev.nishisan.ngate.upstream.UpstreamPoolManager;
 import groovy.util.GroovyScriptEngine;
 import groovy.util.ResourceException;
@@ -76,10 +77,10 @@ public class EndpointWrapper {
     private final RateLimitManager rateLimitManager;
     private final SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
 
-    public EndpointWrapper(OAuthClientManager oauthManager, EndPointConfiguration configuration, GroovyScriptEngine gse, TracerService tracerService, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager, RateLimitManager rateLimitManager, UpstreamPoolManager upstreamPoolManager) {
+    public EndpointWrapper(OAuthClientManager oauthManager, EndPointConfiguration configuration, GroovyScriptEngine gse, TracerService tracerService, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager, RateLimitManager rateLimitManager, UpstreamPoolManager upstreamPoolManager, PassiveHealthChecker passiveHealthChecker) {
         this.configuration = configuration;
         this.oauthManager = oauthManager;
-        this.proxyManager = new HttpProxyManager(this.oauthManager, configuration, proxyMetrics, circuitBreakerManager, rateLimitManager, upstreamPoolManager);
+        this.proxyManager = new HttpProxyManager(this.oauthManager, configuration, proxyMetrics, circuitBreakerManager, rateLimitManager, upstreamPoolManager, passiveHealthChecker);
         this.customGse = gse;
         this.tracerService = tracerService;
         this.proxyMetrics = proxyMetrics;
