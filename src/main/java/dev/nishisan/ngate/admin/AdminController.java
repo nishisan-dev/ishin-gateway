@@ -329,6 +329,12 @@ public class AdminController {
             return ResponseEntity.status(response.code())
                     .contentType(responseType)
                     .body(responseBody);
+        } catch (IOException forwardEx) {
+            // Forward falhou (DNS, conexão, etc.) — fallback para deploy local.
+            // O bundle será publicado na DistributedMap e replicado para o líder via polling.
+            logger.warn("Failed to forward deploy to leader [{}] — falling back to local deploy: {}",
+                    leaderInfo.get().nodeId().value(), forwardEx.getMessage());
+            return null;
         }
     }
 
