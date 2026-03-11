@@ -62,6 +62,12 @@ public class BackendConfiguration {
      */
     private UpstreamHealthCheckConfiguration healthCheck;
 
+    /**
+     * Configuração do passive health check baseado em status codes
+     * observados no tráfego real com sliding window.
+     */
+    private PassiveHealthCheckConfiguration passiveHealthCheck;
+
     // --- Getters/Setters ---
 
     public String getBackendName() {
@@ -118,5 +124,13 @@ public class BackendConfiguration {
 
     public void setHealthCheck(UpstreamHealthCheckConfiguration healthCheck) {
         this.healthCheck = healthCheck;
+    }
+
+    public PassiveHealthCheckConfiguration getPassiveHealthCheck() {
+        return passiveHealthCheck;
+    }
+
+    public void setPassiveHealthCheck(PassiveHealthCheckConfiguration passiveHealthCheck) {
+        this.passiveHealthCheck = passiveHealthCheck;
     }
 }

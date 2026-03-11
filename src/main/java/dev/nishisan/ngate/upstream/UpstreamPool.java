@@ -17,6 +17,7 @@
 package dev.nishisan.ngate.upstream;
 
 import dev.nishisan.ngate.configuration.BackendConfiguration;
+import dev.nishisan.ngate.configuration.PassiveHealthCheckConfiguration;
 import dev.nishisan.ngate.configuration.UpstreamHealthCheckConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,6 +51,7 @@ public class UpstreamPool {
     private final String strategy;
     private final List<UpstreamMemberState> allMembers;
     private final UpstreamHealthCheckConfiguration healthCheckConfig;
+    private final PassiveHealthCheckConfiguration passiveHealthCheckConfig;
 
     /**
      * Membros agrupados por prioridade (TreeMap para ordem natural).
@@ -67,6 +69,7 @@ public class UpstreamPool {
         this.backendName = config.getBackendName();
         this.strategy = config.getStrategy() != null ? config.getStrategy() : "round-robin";
         this.healthCheckConfig = config.getHealthCheck();
+        this.passiveHealthCheckConfig = config.getPassiveHealthCheck();
 
         // Cria os estados dos membros
         this.allMembers = config.getMembers().stream()
@@ -215,5 +218,12 @@ public class UpstreamPool {
      */
     public UpstreamHealthCheckConfiguration getHealthCheckConfig() {
         return healthCheckConfig;
+    }
+
+    /**
+     * @return configuração do passive health check, ou null se não configurado
+     */
+    public PassiveHealthCheckConfiguration getPassiveHealthCheckConfig() {
+        return passiveHealthCheckConfig;
     }
 }

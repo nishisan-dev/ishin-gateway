@@ -20,6 +20,7 @@ import dev.nishisan.ngate.configuration.UpstreamMemberConfiguration;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Estado runtime de um membro do upstream pool.
@@ -39,6 +40,10 @@ public class UpstreamMemberState {
     private final AtomicBoolean healthy = new AtomicBoolean(true);
     private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
     private final AtomicInteger consecutiveSuccesses = new AtomicInteger(0);
+
+    // --- Passive health check state ---
+    private final AtomicBoolean passivelyMarkedDown = new AtomicBoolean(false);
+    private final AtomicLong passiveDownSince = new AtomicLong(0);
 
     public UpstreamMemberState(UpstreamMemberConfiguration config) {
         this.config = config;
@@ -62,7 +67,7 @@ public class UpstreamMemberState {
      * @return true se o membro está saudável e habilitado
      */
     public boolean isAvailable() {
-        return config.isEnabled() && healthy.get();
+        return config.isEnabled() && healthy.get() && !passivelyMarkedDown.get();
     }
 
     /**
@@ -116,12 +121,46 @@ public class UpstreamMemberState {
         return consecutiveSuccesses.get();
     }
 
+    // --- Passive health check ---
+
+    /**
+     * Marca o membro como passivamente DOWN.
+     * Registra o timestamp para controle de recovery.
+     */
+    public void markPassivelyUnhealthy() {
+        passivelyMarkedDown.set(true);
+        passiveDownSince.set(System.currentTimeMillis());
+    }
+
+    /**
+     * Restaura o membro após recovery passivo.
+     */
+    public void markPassivelyHealthy() {
+        passivelyMarkedDown.set(false);
+        passiveDownSince.set(0);
+    }
+
+    /**
+     * @return true se o membro foi marcado DOWN pelo passive health checker
+     */
+    public boolean isPassivelyMarkedDown() {
+        return passivelyMarkedDown.get();
+    }
+
+    /**
+     * @return timestamp em millis de quando o membro foi marcado passivamente DOWN
+     */
+    public long getPassiveDownSince() {
+        return passiveDownSince.get();
+    }
+
     @Override
     public String toString() {
         return "MemberState{url='" + config.getUrl()
                 + "', priority=" + config.getPriority()
                 + ", weight=" + config.getWeight()
                 + ", healthy=" + healthy.get()
+                + ", passivelyDown=" + passivelyMarkedDown.get()
                 + ", enabled=" + config.isEnabled() + "}";
     }
 }
