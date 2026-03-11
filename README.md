@@ -242,6 +242,7 @@ O script faz warmup, roda testes com concorrência 1/10/50, e gera relatório co
 | [Rate Limiting](docs/rate-limiting.md) | Modos stall/nowait, zonas, configuração por escopo, métricas |
 | [Upstream Pool](docs/upstream-pool.md) | Load balancing, priority groups, health checks ativos, estratégias |
 | [Testes de Cluster](docs/cluster_integration_tests.md) | Testes de integração Docker do cluster NGrid |
+| [Desenvolvimento](docs/development.md) | Build, testes unitários/integração, convenções e CI/CD |
 
 ---
 
@@ -301,7 +302,7 @@ n-gate/
 │   │   └── ratelimit/         # RateLimitManager, RateLimitResult
 │   ├── manager/               # Gerenciadores de config e endpoints
 │   ├── upstream/              # UpstreamPool, UpstreamPoolManager, HealthChecker
-│   └── observabitliy/         # TracerService, SpanWrapper, ProxyMetrics
+│   └── observability/         # TracerService, SpanWrapper, ProxyMetrics
 ├── ssl/                       # Keystores SSL
 ├── docker-compose.yml         # Ambiente dev (standalone)
 ├── docker-compose.bench.yml   # Override benchmark
@@ -313,6 +314,23 @@ n-gate/
 │   └── control                # Metadados do pacote
 └── pom.xml                    # Maven build
 ```
+
+---
+
+## Desenvolvimento
+
+```bash
+# Compilar
+mvn clean compile
+
+# Testes unitários (sem Docker)
+mvn test -Dtest='!*IntegrationTest' -DfailIfNoTests=false
+
+# Testes de integração (requer Docker)
+mvn test -Dtest='*IntegrationTest'
+```
+
+Veja o guia completo em [docs/development.md](docs/development.md).
 
 ---
 
