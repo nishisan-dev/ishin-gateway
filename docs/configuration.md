@@ -313,17 +313,51 @@ admin:
 |----------|--------|-----------|
 | `/admin/rules/deploy` | POST | Upload multipart de scripts `.groovy` para deploy |
 | `/admin/rules/version` | GET | Versão do bundle de rules ativo |
+| `/admin/rules/list` | GET | Lista os scripts do bundle ativo com nome e tamanho |
 
-### Uso
+### CLI — `ngate-cli`
+
+O pacote `.deb` instala o utilitário `ngate-cli` em `/usr/bin/`, que encapsula as chamadas à Admin API.
+
+#### Configuração
+
+Via variáveis de ambiente ou arquivo `/etc/n-gate/cli.conf`:
+
+| Variável | Default | Descrição |
+|----------|---------|-----------|
+| `NGATE_ADMIN_URL` | `http://localhost:9190` | URL base da Admin API |
+| `NGATE_API_KEY` | — | Chave de autenticação (obrigatória) |
+
+#### Subcomandos
 
 ```bash
-# Deploy de rules (upload de todos os .groovy na pasta rules/)
+# Deploy de rules a partir de um diretório
+ngate-cli deploy /etc/n-gate/rules
+
+# Listar scripts do bundle ativo
+ngate-cli list
+
+# Consultar versão do bundle ativo
+ngate-cli version
+
+# Exibir ajuda
+ngate-cli help
+```
+
+#### Uso manual com curl
+
+```bash
+# Deploy de rules
 curl -X POST http://localhost:9190/admin/rules/deploy \
   -H "X-API-Key: my-secret-api-key" \
   -F "scripts=@rules/default/Rules.groovy"
 
 # Consultar versão do bundle ativo
 curl http://localhost:9190/admin/rules/version \
+  -H "X-API-Key: my-secret-api-key"
+
+# Listar scripts do bundle ativo
+curl http://localhost:9190/admin/rules/list \
   -H "X-API-Key: my-secret-api-key"
 ```
 

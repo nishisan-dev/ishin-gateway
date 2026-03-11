@@ -38,6 +38,7 @@ O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre s
 | **Cluster Mode** | NGrid mesh TCP com leader election e DistributedMap para coordenação entre instâncias |
 | **Token Sharing** | Tokens OAuth2 compartilhados via POW-RBL (Publish-on-write + Read-before-login) |
 | **Rules Deploy** | Deploy atômico de scripts Groovy via Admin API (`POST /admin/rules/deploy`) com replicação cluster |
+| **CLI (`ngate-cli`)** | Utilitário de linha de comando para deploy, listagem e consulta de versão de rules — instalado via `.deb` em `/usr/bin/ngate-cli` |
 | **Circuit Breaker** | Resilience4j por backend — CLOSED/OPEN/HALF_OPEN com métricas Micrometer |
 | **Rate Limiting** | Controle de taxa por listener, rota e backend com modos `stall` (delay) e `nowait` (429 imediato) |
 | **Upstream Pool** | Load balancing (round-robin/failover/random) com priority groups, health checks ativos via Virtual Threads e failover automático |
@@ -305,6 +306,11 @@ n-gate/
 ├── docker-compose.yml         # Ambiente dev (standalone)
 ├── docker-compose.bench.yml   # Override benchmark
 ├── docker-compose.cluster.yml # Cluster: 3 nós + nginx LB
+├── debian/                    # Packaging .deb
+│   ├── ngate-cli              # CLI tool (instalado em /usr/bin)
+│   ├── n-gate.service         # Systemd unit
+│   ├── postinst               # Script pós-instalação
+│   └── control                # Metadados do pacote
 └── pom.xml                    # Maven build
 ```
 
