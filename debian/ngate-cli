@@ -118,6 +118,7 @@ cmd_deploy() {
         -X POST
         -H "X-API-Key: ${NGATE_API_KEY}"
         -H "Accept: application/json"
+        -H "X-Deployed-By: $(hostname)"
     )
 
     for f in "${groovy_files[@]}"; do

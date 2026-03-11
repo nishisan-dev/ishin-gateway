@@ -128,7 +128,10 @@ public class AdminController {
             }
 
             // 3. Executar deploy
-            String deployedBy = request.getRemoteAddr();
+            String deployedBy = request.getHeader("X-Deployed-By");
+            if (deployedBy == null || deployedBy.isBlank()) {
+                deployedBy = request.getRemoteAddr();
+            }
             RulesBundle bundle = rulesBundleManager.deploy(scripts, deployedBy);
 
             logger.info("Rules deploy completed — v{} by [{}] with {} script(s)",
