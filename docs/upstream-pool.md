@@ -71,6 +71,35 @@ Quando habilitado (`healthCheck.enabled: true`), o n-gate faz probes periódicos
 
 Se `healthCheck` não for configurado ou `enabled: false`, todos os membros são considerados permanentemente saudáveis. Útil para backends internos confiáveis ou quando há health check externo.
 
+### Passive Health Check
+
+O passive health check monitora as **respostas reais do tráfego de produção** para detectar membros degradados com base em status codes observados dentro de uma janela temporal deslizante. Opera de forma independente do active health check.
+
+```yaml
+backends:
+  my-api:
+    passiveHealthCheck:
+      enabled: true
+      statusCodes:
+        503:
+          maxOccurrences: 4
+          slidingWindowSeconds: 60
+        502:
+          maxOccurrences: 3
+          slidingWindowSeconds: 30
+        500:
+          maxOccurrences: 10
+          slidingWindowSeconds: 120
+      recoverySeconds: 30
+```
+
+**Semântica:**
+
+- **Por membro, por status code**: cada membro mantém janelas deslizantes independentes
+- **Sliding window**: se `count(ocorrências no último slidingWindowSeconds) >= maxOccurrences`, o membro é marcado **DOWN**
+- **Recovery**: após `recoverySeconds`, o membro é automaticamente restaurado para receber tráfego de teste. Se continuar falhando, volta imediatamente para DOWN
+- **Coexistência**: active e passive operam independentemente — qualquer um pode marcar DOWN
+
 ## Comportamento em Runtime
 
 1. Request chega no n-gate
@@ -91,6 +120,10 @@ Se `healthCheck` não for configurado ou `enabled: false`, todos os membros são
 | `UpstreamPool` | Lógica de seleção com priority groups + estratégia de LB |
 | `UpstreamPoolManager` | Spring `@Component` — gerencia pools por backendName |
 | `UpstreamHealthChecker` | Probing periódico com Virtual Threads e transições threshold-based |
+| `PassiveHealthChecker` | Monitoramento de status codes do tráfego real com sliding windows |
+| `StatusCodeSlidingWindow` | Janela deslizante thread-safe por (membro, status code) |
+| `PassiveHealthCheckConfiguration` | Configuração do passive HC: regras por status code, recovery |
+| `StatusCodeRule` | Regra individual: maxOccurrences e slidingWindowSeconds |
 
 ## API Breaker
 

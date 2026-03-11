@@ -12,29 +12,38 @@ package "Upstream Pool System" as upstream {
     [UpstreamPoolManager] as poolMgr
     [UpstreamPool\n(per backend)] as pool
     [UpstreamMemberState\n(per member)] as memberState
-    [UpstreamHealthChecker\n(Virtual Threads)] as hc
+    [UpstreamHealthChecker\n(Active - Virtual Threads)] as hc
+    [PassiveHealthChecker\n(Status Code Windows)] as phc
+    [StatusCodeSlidingWindow\n(per member × status)] as sw
 }
 
 package "Configuration" as config {
     [BackendConfiguration] as backendCfg
     [UpstreamMemberConfiguration] as memberCfg
     [UpstreamHealthCheckConfiguration] as hcCfg
+    [PassiveHealthCheckConfiguration] as phcCfg
+    [StatusCodeRule] as scRule
 }
 
 package "EndpointManager" as epMgr {
     [initUpstreamPools()] as initPools
     [start(healthChecker)] as startHC
+    [start(passiveHC)] as startPHC
     [shutdown()] as shutdown
 }
 
 ' Config relationships
 backendCfg --> memberCfg : "members[]"
 backendCfg --> hcCfg : "healthCheck"
+backendCfg --> phcCfg : "passiveHealthCheck"
+phcCfg --> scRule : "statusCodes{}"
 
 ' Lifecycle
 epMgr -down-> poolMgr : "1. initialize(backends)"
 epMgr -down-> hc : "2. start(poolManager)"
+epMgr -down-> phc : "3. start(poolManager, backends)"
 shutdown -down-> hc : "stop()"
+shutdown -down-> phc : "stop()"
 
 ' Pool structure
 poolMgr --> pool : "getPool(backendName)"
@@ -42,9 +51,12 @@ pool --> memberState : "selectMember()\n(priority + strategy)"
 
 ' Health check
 hc --> memberState : "probeMember()\nmarkHealthy / markUnhealthy"
+phc --> memberState : "reportStatusCode()\nmarkPassivelyUnhealthy"
+phc --> sw : "record() / count()"
 
 ' Request flow
 hr --> poolMgr : "selectMember(backendName)"
+hr --> phc : "reportStatusCode()\n(after upstream response)"
 poolMgr --> pool : "delegates"
 pool ..> hr : "Optional<MemberState>"
 
@@ -59,6 +71,12 @@ note right of hc
   Virtual Threads (Java 21)
   Scheduled probing
   Threshold-based transitions
+end note
+
+note right of phc
+  Sliding window per status code
+  Recovery automático
+  Thread-safe (ConcurrentLinkedDeque)
 end note
 
 @enduml
