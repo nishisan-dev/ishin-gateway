@@ -47,6 +47,11 @@ jobs:
           </settings>
           SETTINGS
 
+      - name: Run unit tests
+        run: mvn -B test -Dtest='!*IntegrationTest' -DfailIfNoTests=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build with Maven
         run: mvn -B -DskipTests package
         env:
