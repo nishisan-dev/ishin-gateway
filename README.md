@@ -17,6 +17,8 @@ O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre s
 - **Observabilidade nativa** — Gera traces distribuídos (Brave/Zipkin) com 11+ spans por request, incluindo propagação B3 bidirecional e header `x-trace-id` para correlação.
 - **Streaming de alta performance** — Modo `returnPipe` transfere bytes diretamente do upstream para o cliente sem materialização em memória.
 
+[![Assista ao vídeo de apresentação do n-gate](https://img.youtube.com/vi/ROavAFwytzE/maxresdefault.jpg)](https://www.youtube.com/watch?v=ROavAFwytzE)
+
 ---
 
 ## Features
