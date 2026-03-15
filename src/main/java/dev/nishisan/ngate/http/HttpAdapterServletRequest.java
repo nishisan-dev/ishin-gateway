@@ -22,6 +22,8 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -102,6 +104,28 @@ public class HttpAdapterServletRequest extends HttpServletRequestWrapper {
     @Override
     public Enumeration<String> getHeaders(String name) {
         return Collections.enumeration(Collections.singleton(headers.get(name)));
+    }
+
+    /**
+     * Substitui o body do request antes do envio ao upstream.
+     * <p>
+     * A conversão para bytes utiliza o charset do {@code characterEncoding}
+     * do request original (se presente); caso contrário, utiliza UTF-8.
+     * Isso garante consistência com o header Content-Type enviado ao backend.
+     * </p>
+     *
+     * @param body novo conteúdo do body como String
+     */
+    public void setBody(String body) {
+        Charset charset = StandardCharsets.UTF_8;
+        if (this.characterEncoding != null && !this.characterEncoding.isBlank()) {
+            try {
+                charset = Charset.forName(this.characterEncoding);
+            } catch (Exception ignored) {
+                // encoding inválido no header → fallback seguro para UTF-8
+            }
+        }
+        this.body = body.getBytes(charset);
     }
 
     /**
