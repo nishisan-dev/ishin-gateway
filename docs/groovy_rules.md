@@ -66,10 +66,11 @@ O `upstreamRequest` permite modificar o request antes de enviá-lo ao backend:
 | `addHeader(name, value)` | Adiciona ou substitui um header no request upstream |
 | `getHeader(name)` | Retorna o valor de um header |
 | `setContentType(type)` | Altera o `Content-Type` do request |
-| `getBodyAsBytes()` | Retorna o body original do cliente como `byte[]` (somente leitura) |
+| `setBody(body)` | Substitui o body do request upstream (aceita `String`) |
+| `getBodyAsBytes()` | Retorna o body como `byte[]` (lazy-load; retorna body customizado se `setBody` foi chamado) |
 
-> [!IMPORTANT]
-> **Modificação do body do upstream request** não é suportada na implementação atual. O `HttpAdapterServletRequest` faz lazy loading do body original do cliente via `getBodyAsBytes()`, mas **não expõe um setter** para alterá-lo. Apenas headers, path, query string e backend podem ser modificados. Para cenários que exigem transformação de body, a alternativa é interceptar a resposta via Response Processor ou usar `utils.httpClient` para fazer uma chamada manual ao backend com body customizado e retornar como resposta sintética.
+> [!TIP]
+> **Modificação do body do upstream request** — Use `upstreamRequest.setBody("novo conteúdo")` para substituir o body antes do envio ao backend. A conversão para bytes usa o charset do `characterEncoding` do request (se presente), caso contrário UTF-8. Chamar `setBody()` **não desliga** o `returnPipe` — o streaming do response continua funcionando normalmente.
 
 ---
 
@@ -129,9 +130,38 @@ O `workload.clientResponse()` é um wrapper do `HttpServletResponse` e permite m
 
 ### HttpClientUtils
 
+| Método | Retorno | Descrição |
+|--------|---------|----------|
+| `backend(name)` | `BackendClient` | **Recomendado** — Client fluent com base URL automática do YAML |
+| `getAssyncBackend(name)` | `AssyncHTTPClient` | Client assíncrono legado (requer URL completa) |
+| `getSyncBackend(name)` | `HttpClientWrapper` | Client síncrono legado (requer URL completa) |
+
+### BackendClient (API Fluent)
+
+Retornado por `utils.httpClient.backend(name)`. A base URL é resolvida automaticamente a partir de `backends.<name>.members[0].url` no `adapter.yaml`. O `OkHttpClient` já vem com interceptors de OAuth configurados.
+
+**Métodos Síncronos** (retornam `Response`):
+
 | Método | Descrição |
 |--------|-----------|
-| `getAssyncBackend(name)` | Cria um client HTTP assíncrono para um backend nomeado |
+| `get(path)` | GET com headers opcionais |
+| `post(path, body)` | POST — body aceita `String` ou `byte[]` |
+| `put(path, body)` | PUT — body aceita `String` ou `byte[]` |
+| `patch(path, body)` | PATCH — body aceita `String` ou `byte[]` |
+| `delete(path)` | DELETE com headers opcionais |
+
+**Métodos Assíncronos** (retornam `CompletableFuture<Response>`):
+
+| Método | Descrição |
+|--------|-----------|
+| `getAsync(path)` | GET assíncrono |
+| `postAsync(path, body)` | POST assíncrono — body aceita `String` ou `byte[]` |
+| `putAsync(path, body)` | PUT assíncrono — body aceita `String` ou `byte[]` |
+| `patchAsync(path, body)` | PATCH assíncrono — body aceita `String` ou `byte[]` |
+| `deleteAsync(path)` | DELETE assíncrono |
+
+> [!NOTE]
+> Todos os métodos com body possuem overloads com `Map<String, String> headers` como terceiro parâmetro para injetar headers extras na chamada.
 
 ---
 
@@ -302,22 +332,45 @@ workload.addResponseProcessor('binaryDataProcessor', binaryDataProcessor)
 
 ---
 
-### 6. Chamada Assíncrona a Backend Secundário
+### 6. Chamada a Backend Secundário
 
-Chama outro backend e armazena o resultado para uso posterior:
+Chama outro backend usando a API fluent `utils.httpClient.backend()`:
 
 ```groovy
 // rules/default/Rules.groovy
 
-// Cria um client para o backend secundário
-def secondaryBe = utils.httpClient.getAssyncBackend("metadata-service")
+// Síncrono — 1 linha, URL base vem do adapter.yaml
+def response = utils.httpClient.backend("metadata-service").get("/metadata/" + context.pathParam("id"))
+workload.addObject("metadata", response.body().string())
 
-// Faz uma chamada GET assíncrona
-def future = secondaryBe.get("http://metadata-service:8080/metadata/" + context.pathParam("id"), [:])
-
-// Aguarda a resposta
+// Assíncrono — para chamadas paralelas
+def future = utils.httpClient.backend("metadata-service").getAsync("/metadata/" + context.pathParam("id"))
 def response = future.join()
 workload.addObject("metadata", response.body().string())
+```
+
+---
+
+### 6b. Chamadas Paralelas (Fan-out)
+
+Dispara múltiplas chamadas em paralelo e aguarda todas:
+
+```groovy
+// rules/default/Rules.groovy
+
+// Dispara em paralelo
+def futureUsers = utils.httpClient.backend("users-service").getAsync("/users")
+def futureOrders = utils.httpClient.backend("orders-service").getAsync("/orders")
+
+// Aguarda ambas
+def users = utils.json.parseText(futureUsers.join().body().string())
+def orders = utils.json.parseText(futureOrders.join().body().string())
+
+// Compõe resposta sintética com dados de ambos
+def synth = workload.createSynthResponse()
+synth.setContent(utils.gson.toJson([users: users, orders: orders]))
+synth.setStatus(200)
+synth.addHeader("Content-Type", "application/json")
 ```
 
 ---
@@ -455,6 +508,56 @@ if (blockedIps.contains(clientIp)) {
 // Aborta com exceção (retorna 500 ao cliente)
 if (context.header("X-Force-Error") != null) {
     context.raiseException("Forced error for testing")
+}
+```
+
+---
+
+### 13. Modificação do Body do Request
+
+Substitui o body antes de enviar ao backend:
+
+```groovy
+// rules/default/Rules.groovy
+
+// Lê e modifica o body original do cliente
+def original = utils.json.parseText(new String(upstreamRequest.getBodyAsBytes()))
+original.enrichedAt = new Date().format("yyyy-MM-dd'T'HH:mm:ss")
+original.source = "n-gate"
+
+// Substitui o body — encoding automático (charset do header ou UTF-8)
+upstreamRequest.setBody(utils.gson.toJson(original))
+```
+
+> [!NOTE]
+> Chamar `setBody()` materializa o body em memória, mas **não desliga o `returnPipe`** — o streaming da resposta continua funcionando normalmente.
+
+---
+
+### 14. API Composition — Validação + Short-circuit
+
+Chama um serviço de validação antes de enviar ao upstream real. Se a validação falhar, retorna resposta sintética:
+
+```groovy
+// rules/default/Rules.groovy
+
+def body = new String(upstreamRequest.getBodyAsBytes())
+
+// Valida em um serviço externo
+def validation = utils.httpClient.backend("validator").post("/check", body)
+
+if (validation.code() == 403) {
+    // Short-circuit — NÃO envia ao upstream real
+    def synth = workload.createSynthResponse()
+    synth.setStatus(403)
+    synth.setJson()
+    synth.setContent('{"error": "Validation failed", "reason": "blocked by policy"}')
+} else {
+    // Enriquece o body com dados da validação
+    def result = utils.json.parseText(validation.body().string())
+    def original = utils.json.parseText(body)
+    original.validationToken = result.token
+    upstreamRequest.setBody(utils.gson.toJson(original))
 }
 ```
 
