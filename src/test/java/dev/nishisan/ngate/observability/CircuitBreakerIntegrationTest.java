@@ -139,6 +139,19 @@ public class CircuitBreakerIntegrationTest {
     @Order(1)
     @DisplayName("T1: CLOSED — backend saudável, requests retornam 200, sem header x-circuit-breaker")
     void testCircuitBreakerClosed() throws IOException {
+        // Warmup: aguarda o listener Jetty na porta 9091 estar de fato pronto.
+        // O health check do actuator (9190) pode passar antes dos listeners HTTP estarem servindo.
+        log.info("Aguardando listener Jetty na porta {} estar pronto...", PROXY_HEALTHY_PORT);
+        await().atMost(30, TimeUnit.SECONDS)
+                .pollInterval(1, TimeUnit.SECONDS)
+                .ignoreExceptions()
+                .untilAsserted(() -> {
+                    try (Response warmup = doGet(healthyProxyUrl())) {
+                        assertEquals(200, warmup.code(), "Listener not ready yet");
+                    }
+                });
+        log.info("Listener Jetty na porta {} está pronto.", PROXY_HEALTHY_PORT);
+
         // Backend saudável via porta 9091
         for (int i = 0; i < 5; i++) {
             try (Response response = doGet(healthyProxyUrl())) {
