@@ -1,0 +1,267 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ─── Nordic Tech Palette ────────────────────────────── */
+  --bg-primary: #1A1B1E;
+  --bg-surface: #25262B;
+  --bg-elevated: #2C2E33;
+  --bg-hover: #373A40;
+  --bg-active: #3E4147;
+
+  --accent-primary: #748FFC;
+  --accent-primary-dim: rgba(116, 143, 252, 0.15);
+  --accent-primary-glow: rgba(116, 143, 252, 0.3);
+  --accent-secondary: #A5D8FF;
+  --accent-secondary-dim: rgba(165, 216, 255, 0.12);
+
+  --text-primary: #C1C2C5;
+  --text-secondary: #909296;
+  --text-muted: #5C5F66;
+  --text-bright: #E9ECEF;
+
+  --success: #51CF66;
+  --success-dim: rgba(81, 207, 102, 0.15);
+  --warning: #FCC419;
+  --warning-dim: rgba(252, 196, 25, 0.15);
+  --error: #FF6B6B;
+  --error-dim: rgba(255, 107, 107, 0.15);
+
+  /* ─── Borders ────────────────────────────────────────── */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-accent: rgba(116, 143, 252, 0.3);
+
+  /* ─── Spacing ────────────────────────────────────────── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* ─── Radius ─────────────────────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ─── Shadows ────────────────────────────────────────── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(116, 143, 252, 0.15);
+
+  /* ─── Typography ─────────────────────────────────────── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-lg: 0.9375rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+
+  /* ─── Transitions ────────────────────────────────────── */
+  --transition-fast: 120ms ease;
+  --transition-default: 200ms ease;
+  --transition-slow: 350ms ease;
+}
+
+/* ─── Reset & Base ───────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-hover);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ─── Utility Classes ────────────────────────────────────── */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.text-accent {
+  color: var(--accent-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.text-warning {
+  color: var(--warning);
+}
+
+.text-error {
+  color: var(--error);
+}
+
+/* ─── Animations ─────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px var(--accent-primary-dim); }
+  50% { box-shadow: 0 0 16px var(--accent-primary-glow); }
+}
+
+@keyframes subtle-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s var(--transition-default) forwards;
+}
+
+/* ─── Card Component ─────────────────────────────────────── */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  transition: border-color var(--transition-default), box-shadow var(--transition-default);
+}
+
+.card:hover {
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.card-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.card-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1.2;
+}
+
+/* ─── Badge ──────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px var(--space-sm);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-success {
+  background: var(--success-dim);
+  color: var(--success);
+}
+
+.badge-warning {
+  background: var(--warning-dim);
+  color: var(--warning);
+}
+
+.badge-error {
+  background: var(--error-dim);
+  color: var(--error);
+}
+
+.badge-accent {
+  background: var(--accent-primary-dim);
+  color: var(--accent-primary);
+}
+
+/* ─── Status Dot ─────────────────────────────────────────── */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.status-dot-success {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+}
+
+.status-dot-warning {
+  background: var(--warning);
+  box-shadow: 0 0 6px var(--warning);
+}
+
+.status-dot-error {
+  background: var(--error);
+  box-shadow: 0 0 6px var(--error);
+  animation: subtle-pulse 2s ease-in-out infinite;
+}
+
