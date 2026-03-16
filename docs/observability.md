@@ -394,3 +394,137 @@ Quando `mode: tunnel`, o n-gate expõe métricas TCP específicas via `TunnelMet
 | `ngate.tunnel.listeners.active` | Gauge | — | Listeners TCP ativos |
 
 Para configuração do Tunnel Mode, veja [docs/configuration.md](configuration.md#tunnel-mode).
+
+---
+
+## Dashboard de Observabilidade
+
+O n-gate embute um dashboard Web para monitoramento em tempo real, acessível via porta dedicada (default `9200`). O dashboard é um servidor Javalin standalone que serve uma SPA React e expõe endpoints REST + WebSocket.
+
+![Arquitetura do Dashboard](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/dashboard_architecture.puml)
+
+### Acesso
+
+```bash
+# Dashboard UI
+http://localhost:9200/
+
+# API REST
+http://localhost:9200/api/v1/metrics/current
+http://localhost:9200/api/v1/metrics/history?name=ngate.request.duration&from=...&to=...
+http://localhost:9200/api/v1/topology
+http://localhost:9200/api/v1/health
+```
+
+### Configuração YAML
+
+```yaml
+dashboard:
+  enabled: true
+  port: 9200
+  bind-address: "0.0.0.0"
+  allowed-ips:
+    - "127.0.0.1"
+    - "::1"
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+  storage:
+    path: "./data/dashboard"
+    scrape-interval-seconds: 15
+  zipkin:
+    enabled: false
+    base-url: "http://localhost:9411"
+```
+
+### Modelo RRD (Round Robin Database)
+
+O dashboard persiste métricas históricas em H2 embedded com um modelo inspirado em RRDtool. Os dados são armazenados em 4 tiers de resolução decrescente, com consolidação automática:
+
+| Tier | Intervalo | Retenção | Campos | ~Pontos/métrica |
+|------|-----------|----------|--------|-----------------|
+| `raw` | 15s (scrape) | 6 horas | min, avg, max, count | ~1.440 |
+| `5min` | 5 minutos | 7 dias | min, avg, max, count | ~2.016 |
+| `10min` | 10 minutos | 30 dias | min, avg, max, count | ~4.320 |
+| `1hour` | 1 hora | 365 dias | min, avg, max, count | ~8.760 |
+
+**Consolidação:** A cada intervalo, dados do tier fonte são agregados para o tier destino via média ponderada pelo count. As consolidações são:
+
+- `raw → 5min` — a cada 5 minutos
+- `5min → 10min` — a cada 10 minutos
+- `10min → 1hour` — a cada 1 hora
+
+**Purge:** A cada 1 hora, dados mais antigos que a retenção de cada tier são removidos automaticamente.
+
+**Volume previsto:** Com ~30 métricas monitoradas, o volume total no pior cenário é de ~500K registros (~50MB em H2), mantendo-se constante ao longo do tempo.
+
+### API REST
+
+| Endpoint | Método | Descrição |
+|----------|--------|-----------|
+| `/api/v1/metrics/current` | GET | Métricas atuais do MeterRegistry (snapshot) |
+| `/api/v1/metrics/history` | GET | Série histórica com resolução automática de tier |
+| `/api/v1/metrics/names` | GET | Nomes de métricas disponíveis |
+| `/api/v1/metrics/tiers` | GET | Tiers RRD disponíveis com retenção |
+| `/api/v1/topology` | GET | Grafo de topologia (listeners → gateway → backends) |
+| `/api/v1/traces` | GET | Proxy para Zipkin API v2 (se habilitado) |
+| `/api/v1/traces/{traceId}` | GET | Proxy para trace específico no Zipkin |
+| `/api/v1/health` | GET | Status de saúde do n-gate |
+| `/api/v1/events` | GET | Últimos N eventos do sistema |
+| `/ws/metrics` | WebSocket | Push de métricas em tempo real (a cada 5s) |
+
+#### Parâmetros de `/api/v1/metrics/history`
+
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|-----------|------|-------------|-----------|
+| `name` | string | ✅ | Nome da métrica (ex: `ngate.request.duration`) |
+| `from` | ISO 8601 | — | Início do range (default: 1h atrás) |
+| `to` | ISO 8601 | — | Fim do range (default: agora) |
+| `tier` | string | — | Forçar tier específico (default: auto) |
+
+**Resolução automática de tier:**
+
+| Range | Tier selecionado |
+|-------|-----------------|
+| ≤ 6h | `raw` |
+| ≤ 24h | `5min` |
+| ≤ 7d | `10min` |
+| > 7d | `1hour` |
+
+### IP Allowlisting
+
+O dashboard valida o IP do cliente contra a lista `allowed-ips` antes de processar qualquer request. Suporta:
+
+- IPv4 e IPv6
+- Ranges CIDR (ex: `10.0.0.0/8`)
+- Responde **403 Forbidden** para IPs não autorizados
+
+### Frontend
+
+O frontend é uma SPA React 19 com Vite, compilada para `src/main/resources/static/dashboard/` e servida como asset estático pelo Javalin.
+
+**Componentes principais:**
+
+| Componente | Função |
+|-----------|--------|
+| `MetricsCards` | 6 KPIs com cores dinâmicas + sparkline drill-down por click |
+| `TopologyView` | Visualização de grafo com React Flow |
+| `LatencyChart` | Gráfico Recharts com 3 linhas (min/avg/max) e badge de tier |
+| `TracesPanel` | Lista de traces Zipkin com busca e detalhamento de spans |
+| `EventTimeline` | Timeline vertical de eventos do sistema |
+
+**Design:** Paleta "Nordic Tech" (fundo `#1A1B1E`, destaque `#748FFC`, secundário `#A5D8FF`, texto `#C1C2C5`).
+
+### Desenvolvimento
+
+```bash
+# Instalar dependências do frontend
+cd n-gate-ui && npm install
+
+# Dev server com hot reload (proxy para backend na porta 9200)
+npm run dev   # http://localhost:3000
+
+# Build de produção (output em src/main/resources/static/dashboard/)
+npm run build
+```
+

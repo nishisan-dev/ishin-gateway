@@ -1,0 +1,96 @@
+@startuml dashboard_architecture
+!theme plain
+skinparam backgroundColor #1A1B1E
+skinparam defaultFontColor #C1C2C5
+skinparam ArrowColor #748FFC
+skinparam RectangleBorderColor #5C5F66
+skinparam RectangleBackgroundColor #25262B
+skinparam ComponentBorderColor #5C5F66
+skinparam ComponentBackgroundColor #2C2E33
+skinparam DatabaseBorderColor #5C5F66
+skinparam DatabaseBackgroundColor #2C2E33
+skinparam NoteBorderColor #5C5F66
+skinparam NoteBackgroundColor #2C2E33
+skinparam TitleFontColor #748FFC
+skinparam TitleFontSize 18
+
+title n-gate — Dashboard de Observabilidade
+
+rectangle "Browser" as browser #1A1B1E {
+  component "React SPA\n(Vite + React 19)" as spa {
+    component "MetricsCards" as cards
+    component "TopologyView" as topo
+    component "LatencyChart" as latency
+    component "TracesPanel" as traces
+    component "EventTimeline" as events
+  }
+}
+
+rectangle "n-gate Process" as ngate #1A1B1E {
+  rectangle "Dashboard Server\n(Javalin :9200)" as dashserver {
+    component "IP Filter" as ipfilter
+    component "REST API\n/api/v1/*" as restapi
+    component "WebSocket\n/ws/metrics" as wsapi
+    component "SPA Static Files" as static
+  }
+
+  rectangle "Schedulers" as schedulers {
+    component "Metrics Scrape\n(15s)" as scraper
+    component "Consolidation\nraw→5m→10m→1h" as consolidation
+    component "Purge\n(per-tier)" as purge
+    component "WS Push\n(5s)" as wspush
+  }
+
+  component "MetricsCollectorService" as collector
+  component "MeterRegistry\n(Micrometer)" as micrometer
+
+  rectangle "Proxy Engine" as proxy {
+    component "Listeners" as listeners
+    component "Backends" as backends
+  }
+}
+
+database "H2 Embedded" as h2 {
+  component "metric_series\n(RRD tiers)" as rrd
+  component "event_log" as eventlog
+}
+
+cloud "Zipkin" as zipkin
+
+' ─── Flows ────────────────────────────────────────────────────────────
+browser -down-> ipfilter : HTTP/WS
+ipfilter -down-> restapi
+ipfilter -down-> wsapi
+ipfilter -down-> static
+
+static -up-> spa : index.html\n+ assets
+
+restapi -down-> collector : /metrics/current
+restapi -down-> h2 : /metrics/history\n/events
+restapi -down-> proxy : /topology
+restapi -right-> zipkin : /traces\n(proxy)
+
+wsapi -down-> wspush
+
+scraper -down-> collector
+collector -down-> micrometer : in-process read
+collector -down-> rrd : insert raw
+
+consolidation -down-> rrd : MERGE INTO\n(weighted avg)
+purge -down-> rrd : DELETE expired
+wspush -right-> wsapi : push JSON
+
+proxy -up-> micrometer : counters,\ntimers, gauges
+
+note right of rrd
+  **Tiers RRD**
+  ──────────────────
+  raw    │ 15s  │ 6h
+  5min   │ 5m   │ 7d
+  10min  │ 10m  │ 30d
+  1hour  │ 1h   │ 365d
+  ──────────────────
+  min | avg | max | count
+end note
+
+@enduml
