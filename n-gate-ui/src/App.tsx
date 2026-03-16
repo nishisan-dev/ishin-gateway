@@ -1,16 +1,28 @@
+import { useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { MetricsCards } from './components/MetricsCards/MetricsCards';
 import { TopologyView } from './components/TopologyView/TopologyView';
 import { EventTimeline } from './components/EventTimeline/EventTimeline';
+import { LatencyChart } from './components/LatencyChart/LatencyChart';
+import { TracesPanel } from './components/TracesPanel/TracesPanel';
 import { useMetrics, useTopology, useHealth, useEvents } from './hooks/useDashboard';
-import { Activity, Server, Shield } from 'lucide-react';
+import { Activity, Server, Shield, Map, TrendingUp, Layers } from 'lucide-react';
 import './App.css';
+
+type TabId = 'topology' | 'latency' | 'traces';
 
 function App() {
   const metrics = useMetrics();
   const { topology, loading: topoLoading } = useTopology();
   const health = useHealth();
   const events = useEvents();
+  const [activeTab, setActiveTab] = useState<TabId>('topology');
+
+  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: 'topology', label: 'Topologia', icon: <Map size={13} /> },
+    { id: 'latency', label: 'Latência', icon: <TrendingUp size={13} /> },
+    { id: 'traces', label: 'Traces', icon: <Layers size={13} /> },
+  ];
 
   return (
     <div className="dashboard">
@@ -55,10 +67,44 @@ function App() {
           <MetricsCards metrics={metrics} />
         </section>
 
-        <section className="main-topology">
-          <ReactFlowProvider>
-            <TopologyView data={topology} loading={topoLoading} />
-          </ReactFlowProvider>
+        {/* ─── Tab Navigation ──────────────────────────────── */}
+        <nav className="tab-nav">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              className={`tab-btn ${activeTab === tab.id ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* ─── Tab Content ─────────────────────────────────── */}
+        <section className="main-content">
+          {activeTab === 'topology' && (
+            <ReactFlowProvider>
+              <TopologyView data={topology} loading={topoLoading} />
+            </ReactFlowProvider>
+          )}
+
+          {activeTab === 'latency' && (
+            <div className="latency-section">
+              <LatencyChart
+                metricName="ngate.request.duration"
+                title="Request Duration"
+              />
+              <LatencyChart
+                metricName="ngate.requests.total"
+                title="Request Rate"
+              />
+            </div>
+          )}
+
+          {activeTab === 'traces' && (
+            <TracesPanel enabled={true} />
+          )}
         </section>
       </main>
     </div>

@@ -151,3 +151,22 @@ endpoints:
 #     zone: "api-global"
 #     mode: "nowait"
 
+# --- Observability Dashboard ---
+# UI embutida de observabilidade com métricas, topologia e traces.
+# Roda em porta dedicada com acesso restrito por IP allowlist.
+# dashboard:
+#   enabled: true
+#   port: 9200                              # porta do dashboard (default: 9200)
+#   bindAddress: "127.0.0.1"                # bind apenas localhost por segurança
+#   allowedIps:                             # IPs/CIDRs permitidos (vazio = todos)
+#     - "127.0.0.1"
+#     - "::1"
+#     - "10.0.0.0/8"
+#     - "192.168.0.0/16"
+#   storage:
+#     path: "./data/dashboard"              # diretório do H2 embedded
+#     retentionHours: 24                    # retenção de métricas históricas
+#     scrapeIntervalSeconds: 15             # intervalo de coleta (segundos)
+#   zipkin:
+#     enabled: false                        # habilitar proxy para Zipkin
+#     baseUrl: "http://localhost:9411"       # URL do Zipkin server
