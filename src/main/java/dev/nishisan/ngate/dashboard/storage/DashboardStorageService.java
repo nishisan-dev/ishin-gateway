@@ -160,8 +160,11 @@ public class DashboardStorageService {
      * Salva batch de snapshots raw.
      */
     public void saveRawSnapshotBatch(List<MetricSnapshotRecord> records) {
-        String sql = "INSERT INTO metric_series (metric_name, tier, bucket_ts, val_min, val_avg, val_max, val_count) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String sql = """
+                MERGE INTO metric_series (metric_name, tier, bucket_ts, val_min, val_avg, val_max, val_count)
+                KEY (metric_name, tier, bucket_ts)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """;
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             conn.setAutoCommit(false);
             Timestamp now = Timestamp.from(Instant.now());
