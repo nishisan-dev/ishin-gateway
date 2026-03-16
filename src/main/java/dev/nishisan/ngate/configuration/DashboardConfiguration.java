@@ -89,7 +89,7 @@ public class DashboardConfiguration {
      */
     public static class DashboardStorageConfiguration {
         private String type = "h2";
-        private String path = "./data/dashboard";
+        private String path = "/var/lib/n-gate/dashboard";
         private int retentionHours = 168; // 7 dias
         private int scrapeIntervalSeconds = 60;
 
