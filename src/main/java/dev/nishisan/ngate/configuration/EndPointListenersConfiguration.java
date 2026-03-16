@@ -16,6 +16,7 @@
  */
 package dev.nishisan.ngate.configuration;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -158,12 +159,36 @@ public class EndPointListenersConfiguration {
 
     private RateLimitRefConfiguration rateLimit;
 
+    /**
+     * Porta virtual no túnel. Quando null, inferida de {@code listenPort}.
+     * Permite que múltiplos proxies com portas reais diferentes
+     * pertençam ao mesmo Virtual Port Group.
+     */
+    private Integer virtualPort;
+
     public RateLimitRefConfiguration getRateLimit() {
         return rateLimit;
     }
 
     public void setRateLimit(RateLimitRefConfiguration rateLimit) {
         this.rateLimit = rateLimit;
+    }
+
+    public Integer getVirtualPort() {
+        return virtualPort;
+    }
+
+    public void setVirtualPort(Integer virtualPort) {
+        this.virtualPort = virtualPort;
+    }
+
+    /**
+     * Retorna a porta virtual efetiva: se {@code virtualPort} estiver definida,
+     * usa ela; caso contrário, usa {@code listenPort}.
+     */
+    @JsonIgnore
+    public int getEffectiveVirtualPort() {
+        return virtualPort != null ? virtualPort : listenPort;
     }
 
     public Map<String, String> getVirtualHosts() {

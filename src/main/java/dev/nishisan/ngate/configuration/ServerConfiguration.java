@@ -16,6 +16,7 @@
  */
 package dev.nishisan.ngate.configuration;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,10 +27,33 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ServerConfiguration {
 
+    /**
+     * Modo de operação: "proxy" (default) ou "tunnel".
+     * Um processo é SEMPRE um OU outro, nunca ambos.
+     */
+    private String mode = "proxy";
+
     private Map<String, EndPointConfiguration> endpoints = new ConcurrentHashMap<>();
     private ClusterConfiguration cluster;
     private AdminApiConfiguration admin;
     private CircuitBreakerConfiguration circuitBreaker;
+    private TunnelConfiguration tunnel;
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
+    /**
+     * @return true se o modo de operação é "tunnel"
+     */
+    @JsonIgnore
+    public boolean isTunnelMode() {
+        return "tunnel".equalsIgnoreCase(mode);
+    }
 
     public Map<String, EndPointConfiguration> getEndpoints() {
         return endpoints;
@@ -61,6 +85,14 @@ public class ServerConfiguration {
 
     public void setCircuitBreaker(CircuitBreakerConfiguration circuitBreaker) {
         this.circuitBreaker = circuitBreaker;
+    }
+
+    public TunnelConfiguration getTunnel() {
+        return tunnel;
+    }
+
+    public void setTunnel(TunnelConfiguration tunnel) {
+        this.tunnel = tunnel;
     }
 
     private RateLimitConfiguration rateLimiting;

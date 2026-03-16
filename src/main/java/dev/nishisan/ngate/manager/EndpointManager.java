@@ -89,6 +89,12 @@ public class EndpointManager {
     @Order(30)
     @EventListener(ApplicationReadyEvent.class)
     private void onStartup() {
+        // Em tunnel mode, endpoints Javalin não são inicializados
+        if (configurationManager.loadConfiguration().isTunnelMode()) {
+            logger.info("EndpointManager: skipping — running in TUNNEL mode");
+            return;
+        }
+
         try {
             this.initGse();
             this.initUpstreamPools();

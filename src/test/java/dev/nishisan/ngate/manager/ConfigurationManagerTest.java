@@ -289,4 +289,162 @@ class ConfigurationManagerTest {
         assertEquals("cdn-backend", listener.getVirtualHosts().get("*.cdn.example.com"));
         assertEquals("fallback", listener.getDefaultBackend());
     }
+
+    @Test
+    @Order(6)
+    @DisplayName("T6: YAML com mode=tunnel e bloco tunnel é parseado corretamente")
+    void testTunnelModeConfigParsing() throws IOException {
+        String yaml = """
+                ---
+                mode: tunnel
+                tunnel:
+                  loadBalancing: "least-connections"
+                  missedKeepalives: 5
+                  drainTimeout: 60
+                  bindAddress: "0.0.0.0"
+                  autoPromoteStandby: true
+                cluster:
+                  enabled: true
+                  host: "0.0.0.0"
+                  port: 7100
+                  clusterName: "tunnel-cluster"
+                  seeds:
+                    - "tunnel-node:7100"
+                """;
+
+        File configFile = tempDir.resolve("adapter-tunnel.yaml").toFile();
+        try (FileWriter writer = new FileWriter(configFile)) {
+            writer.write(yaml);
+        }
+
+        ServerConfiguration config = yamlMapper.readValue(configFile, ServerConfiguration.class);
+
+        assertEquals("tunnel", config.getMode());
+        assertTrue(config.isTunnelMode());
+
+        assertNotNull(config.getTunnel(), "Tunnel config should not be null");
+        assertEquals("least-connections", config.getTunnel().getLoadBalancing());
+        assertEquals(5, config.getTunnel().getMissedKeepalives());
+        assertEquals(60, config.getTunnel().getDrainTimeout());
+        assertEquals("0.0.0.0", config.getTunnel().getBindAddress());
+        assertTrue(config.getTunnel().isAutoPromoteStandby());
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("T7: YAML com mode=proxy e tunnel.registration é parseado corretamente")
+    void testProxyWithTunnelRegistrationParsing() throws IOException {
+        String yaml = """
+                ---
+                mode: proxy
+                endpoints:
+                  default:
+                    listeners:
+                      http:
+                        listenAddress: "0.0.0.0"
+                        listenPort: 9091
+                        ssl: false
+                        secured: false
+                        urlContexts:
+                          default:
+                            context: "/*"
+                            method: "ANY"
+                    backends:
+                      backend:
+                        backendName: "backend"
+                        members:
+                          - url: "http://backend:8080"
+                    ruleMapping: "default/Rules.groovy"
+                tunnel:
+                  registration:
+                    enabled: true
+                    keepaliveInterval: 5
+                    status: "ACTIVE"
+                    weight: 150
+                cluster:
+                  enabled: true
+                  host: "0.0.0.0"
+                  port: 7100
+                  clusterName: "test-cluster"
+                  seeds:
+                    - "node1:7100"
+                """;
+
+        File configFile = tempDir.resolve("adapter-proxy-reg.yaml").toFile();
+        try (FileWriter writer = new FileWriter(configFile)) {
+            writer.write(yaml);
+        }
+
+        ServerConfiguration config = yamlMapper.readValue(configFile, ServerConfiguration.class);
+
+        assertEquals("proxy", config.getMode());
+        assertFalse(config.isTunnelMode());
+
+        assertNotNull(config.getTunnel());
+        assertNotNull(config.getTunnel().getRegistration());
+        assertTrue(config.getTunnel().getRegistration().isEnabled());
+        assertEquals(5, config.getTunnel().getRegistration().getKeepaliveInterval());
+        assertEquals("ACTIVE", config.getTunnel().getRegistration().getStatus());
+        assertEquals(150, config.getTunnel().getRegistration().getWeight());
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("T8: YAML com virtualPort nos listeners é parseado corretamente")
+    void testVirtualPortInListenersParsing() throws IOException {
+        String yaml = """
+                ---
+                mode: proxy
+                endpoints:
+                  default:
+                    listeners:
+                      http:
+                        listenAddress: "0.0.0.0"
+                        listenPort: 19091
+                        virtualPort: 9091
+                        ssl: false
+                        secured: false
+                        urlContexts:
+                          default:
+                            context: "/*"
+                            method: "ANY"
+                      http-no-vport:
+                        listenAddress: "0.0.0.0"
+                        listenPort: 8080
+                        ssl: false
+                        secured: false
+                        urlContexts:
+                          default:
+                            context: "/*"
+                            method: "ANY"
+                    backends:
+                      backend:
+                        backendName: "backend"
+                        members:
+                          - url: "http://backend:8080"
+                    ruleMapping: "default/Rules.groovy"
+                """;
+
+        File configFile = tempDir.resolve("adapter-vport.yaml").toFile();
+        try (FileWriter writer = new FileWriter(configFile)) {
+            writer.write(yaml);
+        }
+
+        ServerConfiguration config = yamlMapper.readValue(configFile, ServerConfiguration.class);
+
+        EndPointListenersConfiguration listener = config.getEndpoints().get("default")
+                .getListeners().get("http");
+        assertNotNull(listener.getVirtualPort(), "virtualPort should be set");
+        assertEquals(9091, listener.getVirtualPort());
+        assertEquals(19091, listener.getListenPort());
+        assertEquals(9091, listener.getEffectiveVirtualPort(),
+                "Effective virtual port should be the explicit virtualPort");
+
+        // Listener sem virtualPort
+        EndPointListenersConfiguration noVPortListener = config.getEndpoints().get("default")
+                .getListeners().get("http-no-vport");
+        assertNull(noVPortListener.getVirtualPort(), "virtualPort should be null when not set");
+        assertEquals(8080, noVPortListener.getEffectiveVirtualPort(),
+                "Effective virtual port should fall back to listenPort");
+    }
 }

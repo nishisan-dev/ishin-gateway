@@ -79,6 +79,12 @@ public class ConfigurationManager {
     private void onStartup() {
         this.loadConfiguration();
 
+        // Em tunnel mode, endpoints/oauth/CB/ratelimit não se aplicam
+        if (configuration.isTunnelMode()) {
+            logger.info("ConfigurationManager: mode=tunnel — skipping proxy component initialization");
+            return;
+        }
+
         configuration.getEndpoints().forEach((k, v) -> {
             v.getBackends().forEach((bk, bv) -> {
                 if (bv.getOauthClientConfig() != null) {
