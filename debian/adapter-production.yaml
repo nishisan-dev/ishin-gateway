@@ -10,7 +10,7 @@ endpoints:
     listeners:
       http:
         listenAddress: "0.0.0.0"
-        listenPort: 9090
+        listenPort: 9091
         ssl: false
         scriptOnly: false
         defaultScript: "Default.groovy"
