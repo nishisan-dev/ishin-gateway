@@ -17,46 +17,25 @@ O ishin-gateway publica imagens Docker oficiais no DockerHub em cada release.
 
 ## Quick Start
 
-**1. Criar configuração mínima:**
+A imagem inclui configuração default e rules pass-through — funciona sem volumes:
 
 ```bash
-cat > adapter.yaml <<'EOF'
-endpoints:
-  default:
-    listeners:
-      http:
-        listenAddress: "0.0.0.0"
-        listenPort: 9091
-        ssl: false
-        scriptOnly: false
-        defaultBackend: "backend-1"
-        secured: false
-        urlContexts:
-          default:
-            context: "/*"
-            method: "ANY"
-            ruleMapping: "default/Rules.groovy"
-    backends:
-      backend-1:
-        backendName: "backend-1"
-        members:
-          - url: "http://host.docker.internal:8080"
-    ruleMapping: "default/Rules.groovy"
-    ruleMappingThreads: 1
-    socketTimeout: 30
-EOF
+docker run -d \
+  --name ishin-gateway \
+  -p 9091:9091 \
+  -p 9190:9190 \
+  lnishisan/ishin-gateway:latest
 ```
 
-**2. Criar script de regras padrão:**
+Verificar:
 
 ```bash
-mkdir -p rules/default
-cat > rules/default/Rules.groovy <<'EOF'
-// Pass-through — forwards all requests to backend
-EOF
+curl http://localhost:9190/actuator/health
 ```
 
-**3. Executar:**
+### Customizando
+
+Para usar sua própria configuração, monte volumes sobre os defaults:
 
 ```bash
 docker run -d \
@@ -66,12 +45,6 @@ docker run -d \
   -v $(pwd)/adapter.yaml:/app/config/adapter.yaml:ro \
   -v $(pwd)/rules:/app/rules \
   lnishisan/ishin-gateway:latest
-```
-
-**4. Verificar:**
-
-```bash
-curl http://localhost:9190/actuator/health
 ```
 
 ---
@@ -110,8 +83,8 @@ curl http://localhost:9190/actuator/health
 
 | Container Path | Tipo | Descrição |
 |----------------|------|-----------|
-| `/app/config/adapter.yaml` | **Obrigatório** | Arquivo de configuração principal |
-| `/app/rules/` | **Obrigatório** | Diretório com scripts Groovy de regras |
+| `/app/config/adapter.yaml` | Opcional | Configuração principal (default embutido na imagem) |
+| `/app/rules/` | Opcional | Scripts Groovy de regras (default: pass-through) ||
 | `/app/ssl/` | Opcional | Keystores Java para listeners HTTPS |
 | `/app/data/` | Opcional | Dados persistentes (NGrid, dashboard H2) |
 

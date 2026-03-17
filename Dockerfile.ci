@@ -1,10 +1,18 @@
 # ─────────────────────────────────────────────────────
 # Ishin Gateway — CI Runtime Image
-# Receives a pre-built JAR from the pipeline
+# Receives a pre-built JAR from the pipeline.
+# Embeds default config + rules (overridable via volumes).
 # ─────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+
+# Default config + rules (override with bind mounts)
+COPY config/ config/
+COPY rules/ rules/
+
+# Application JAR
 ARG JAR_FILE=ishin-gateway.jar
 COPY ${JAR_FILE} app.jar
+
 EXPOSE 9091 9190 7100 18080
 ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:+ZGenerational", "-Xms128m", "-Xmx256m", "-jar", "app.jar"]
