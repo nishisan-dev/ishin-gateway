@@ -29,6 +29,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -94,14 +95,19 @@ public class DashboardApiRoutes {
             String resolvedTier;
 
             if (tierParam != null && !tierParam.isBlank()) {
-                // Tier forçado pelo cliente
-                records = storage.queryMetricsWithTier(name, tierParam, from, to);
                 resolvedTier = tierParam;
             } else {
-                // Resolução automática baseada no range
-                records = storage.queryMetrics(name, from, to);
                 resolvedTier = DashboardStorageService.resolveTier(
                         java.time.Duration.between(from, to));
+            }
+
+            // Busca direta
+            records = storage.queryMetricsWithTier(name, resolvedTier, from, to);
+
+            // Se vazio, pode ser um Timer armazenado como .mean/.max/.count
+            // Tenta pelo sufixo .mean que contém os valores médios
+            if (records.isEmpty()) {
+                records = storage.queryMetricsWithTier(name + ".mean", resolvedTier, from, to);
             }
 
             // Retorna com metadata do tier usado
@@ -262,6 +268,15 @@ public class DashboardApiRoutes {
         health.put("timestamp", Instant.now().toString());
         health.put("mode", serverConfig.getMode());
 
+        // Versão do JAR (vem do MANIFEST.MF gerado pelo Spring Boot)
+        String version = getClass().getPackage().getImplementationVersion();
+        health.put("version", version != null ? version : "dev");
+
+        // Uptime em milissegundos
+        long uptimeMs = ManagementFactory.getRuntimeMXBean().getUptime();
+        health.put("uptimeMs", uptimeMs);
+        health.put("uptime", formatUptime(uptimeMs));
+
         int listenerCount = serverConfig.getEndpoints().values().stream()
                 .mapToInt(ep -> ep.getListeners() != null ? ep.getListeners().size() : 0)
                 .sum();
@@ -273,6 +288,19 @@ public class DashboardApiRoutes {
         health.put("backends", backendCount);
 
         return health;
+    }
+
+    private static String formatUptime(long ms) {
+        long seconds = ms / 1000;
+        long days = seconds / 86400;
+        long hours = (seconds % 86400) / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long secs = seconds % 60;
+
+        if (days > 0) return String.format("%dd %dh %dm", days, hours, minutes);
+        if (hours > 0) return String.format("%dh %dm %ds", hours, minutes, secs);
+        if (minutes > 0) return String.format("%dm %ds", minutes, secs);
+        return String.format("%ds", secs);
     }
 
     // ─── Zipkin Proxy ───────────────────────────────────────────────────
