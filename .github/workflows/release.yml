@@ -47,6 +47,14 @@ jobs:
           </settings>
           SETTINGS
 
+      - name: Set project version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          mvn -B versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run unit tests
         run: mvn -B test -Dtest='!*IntegrationTest' -DfailIfNoTests=false
         env:
@@ -59,7 +67,7 @@ jobs:
 
       - name: Build .deb package
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_VERSION}"
           PKG="n-gate_${VERSION}_all"
 
           # Montar árvore FHS
