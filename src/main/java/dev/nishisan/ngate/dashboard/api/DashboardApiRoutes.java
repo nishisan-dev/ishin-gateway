@@ -209,6 +209,60 @@ public class DashboardApiRoutes {
                             "type", "inbound"
                     ));
 
+                    // ─── Context & Script nodes ─────────────────────────
+                    if (listenerConfig.getUrlContexts() != null) {
+                        listenerConfig.getUrlContexts().forEach((ctxName, urlCtx) -> {
+                            String contextId = "context:" + listenerName + ":" + ctxName;
+
+                            // Nó de contexto
+                            Map<String, Object> contextNode = new LinkedHashMap<>();
+                            contextNode.put("id", contextId);
+                            contextNode.put("type", "context");
+                            contextNode.put("label", ctxName);
+                            contextNode.put("listener", listenerName);
+                            contextNode.put("contextPath", urlCtx.getContext());
+                            contextNode.put("method", urlCtx.getMethod());
+                            contextNode.put("ruleMapping", urlCtx.getRuleMapping());
+                            contextNode.put("secured", urlCtx.getSecured());
+                            nodes.add(contextNode);
+
+                            // Edge: listener → context
+                            Map<String, Object> listenerToCtxEdge = new LinkedHashMap<>();
+                            listenerToCtxEdge.put("source", listenerId);
+                            listenerToCtxEdge.put("target", contextId);
+                            listenerToCtxEdge.put("type", "context");
+                            edges.add(listenerToCtxEdge);
+
+                            // Edge: context → ngate
+                            Map<String, Object> ctxToGatewayEdge = new LinkedHashMap<>();
+                            ctxToGatewayEdge.put("source", contextId);
+                            ctxToGatewayEdge.put("target", "ngate");
+                            ctxToGatewayEdge.put("type", "inbound-context");
+                            edges.add(ctxToGatewayEdge);
+
+                            // Nó de script (quando ruleMapping está definido)
+                            if (urlCtx.getRuleMapping() != null && !urlCtx.getRuleMapping().trim().isEmpty()) {
+                                String scriptName = urlCtx.getRuleMapping().trim();
+                                String scriptId = "script:" + listenerName + ":" + ctxName + ":" + scriptName;
+
+                                Map<String, Object> scriptNode = new LinkedHashMap<>();
+                                scriptNode.put("id", scriptId);
+                                scriptNode.put("type", "script");
+                                scriptNode.put("label", scriptName);
+                                scriptNode.put("script", scriptName);
+                                scriptNode.put("context", contextId);
+                                nodes.add(scriptNode);
+
+                                // Edge: context → script
+                                Map<String, Object> ctxToScriptEdge = new LinkedHashMap<>();
+                                ctxToScriptEdge.put("source", contextId);
+                                ctxToScriptEdge.put("target", scriptId);
+                                ctxToScriptEdge.put("type", "script-exec");
+                                edges.add(ctxToScriptEdge);
+                            }
+                        });
+                    }
+
                     if (listenerConfig.getDefaultBackend() != null) {
                         String backendId = "backend:" + listenerConfig.getDefaultBackend();
                         Map<String, Object> edge = new LinkedHashMap<>();
