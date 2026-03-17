@@ -23,7 +23,7 @@ docker run -d \
   -p 9091:9091 \
   -p 9190:9190 \
   -v $(pwd)/adapter.yaml:/app/config/adapter.yaml:ro \
-  -v $(pwd)/rules:/app/rules:ro \
+  -v $(pwd)/rules:/app/rules \
   lnishisan/ishin-gateway:latest
 ```
 
@@ -69,7 +69,7 @@ docker run -d \
 | `/app/data/` | Opcional | Dados persistentes (NGrid, dashboard H2) |
 
 > [!WARNING]
-> **Cluster mode:** O volume `rules/` **não pode ser montado como `:ro`**. O `RulesBundleManager` materializa scripts recebidos via `DistributedMap` diretamente no `rulesBasePath`, exigindo permissão de escrita. Em standalone, `:ro` é seguro.
+> O volume `rules/` **não pode ser montado como `:ro`**. O `RulesBundleManager` materializa scripts recebidos via Admin API e `DistributedMap` diretamente no `rulesBasePath`, exigindo permissão de escrita em qualquer modo (standalone ou cluster).
 
 ---
 
@@ -87,7 +87,7 @@ services:
       TRACING_ENABLED: "false"
     volumes:
       - ./config/adapter.yaml:/app/config/adapter.yaml:ro
-      - ./rules:/app/rules:ro
+      - ./rules:/app/rules
     restart: unless-stopped
 ```
 
