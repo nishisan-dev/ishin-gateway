@@ -47,6 +47,21 @@ jobs:
           </settings>
           SETTINGS
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: n-gate-ui/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: n-gate-ui
+
+      - name: Build frontend (n-gate-ui)
+        run: npm run build
+        working-directory: n-gate-ui
+
       - name: Set project version from tag
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
