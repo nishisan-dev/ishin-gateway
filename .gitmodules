@@ -1,4 +1,4 @@
 [submodule "ishin-gateway-test-case"]
-	path = n-gate-test-case
+	path = ishin-gateway-test-case
 	url = git@github.com:nishisan-dev/ishin-gateway-test-case.git
 
