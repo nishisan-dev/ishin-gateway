@@ -257,6 +257,7 @@ public class EndpointWrapper {
                                 if (proxyMetrics != null) {
                                     long durationMs = (System.nanoTime() - handlerStartNanos) / 1_000_000;
                                     proxyMetrics.recordInboundRequest(name, ctx.method().name(), ctx.statusCode(), durationMs);
+                                    proxyMetrics.recordContextRequest(name, contextName, ctx.method().name(), ctx.statusCode(), durationMs);
                                 }
                             }
                         });
@@ -395,6 +396,7 @@ public class EndpointWrapper {
                                         if (proxyMetrics != null) {
                                             long durationMs = (System.nanoTime() - handlerStartNanos) / 1_000_000;
                                             proxyMetrics.recordInboundRequest(name, ctx.method().name(), ctx.statusCode(), durationMs);
+                                            proxyMetrics.recordContextRequest(name, contextName, ctx.method().name(), ctx.statusCode(), durationMs);
                                         }
                                     }
                                 })

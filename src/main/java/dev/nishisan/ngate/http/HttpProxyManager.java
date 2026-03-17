@@ -444,14 +444,25 @@ public class HttpProxyManager {
                 SpanWrapper scriptSpan = tracerWrapper.createSpan("rules-execution");
                 scriptSpan.tag("script", runningScript);
                 logger.debug("Running Script: [{}] ", runningScript);
+                long scriptStart = System.currentTimeMillis();
                 try {
                     gse.run(runningScript, localBindings);
+                    // Métricas de script: execução bem-sucedida
+                    if (proxyMetrics != null) {
+                        long scriptDuration = System.currentTimeMillis() - scriptStart;
+                        proxyMetrics.recordScriptExecution(listenerName, handler.getContextName(), runningScript, scriptDuration);
+                    }
                 } catch (ResourceException | ScriptException ex) {
                     //
                     // Erro de Groovy...
                     //
                     logger.error("Failed to Process Groovy Script:[{}]", runningScript, ex);
-
+                    // Métricas de script: erro
+                    if (proxyMetrics != null) {
+                        long scriptDuration = System.currentTimeMillis() - scriptStart;
+                        proxyMetrics.recordScriptExecution(listenerName, handler.getContextName(), runningScript, scriptDuration);
+                        proxyMetrics.recordScriptError(listenerName, handler.getContextName(), runningScript);
+                    }
                 } finally {
                     scriptSpan.finish();
                 }
