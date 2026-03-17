@@ -1,0 +1,312 @@
+/* ─── Waterfall Container ────────────────────────────────────── */
+.waterfall {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ─── Header ─────────────────────────────────────────────────── */
+.waterfall-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.waterfall-back {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  border: none;
+  background: var(--bg-primary);
+  color: var(--accent-primary);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.waterfall-back:hover {
+  background: var(--accent-primary-dim);
+}
+
+.waterfall-summary {
+  flex: 1;
+  min-width: 0;
+}
+
+.waterfall-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: 4px;
+}
+
+.waterfall-root-name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.waterfall-error-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--error-dim);
+  color: var(--error);
+  flex-shrink: 0;
+}
+
+.waterfall-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.waterfall-trace-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.waterfall-trace-id:hover {
+  background: var(--bg-hover);
+  color: var(--accent-primary);
+}
+
+.waterfall-stat strong {
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
+/* ─── Timeline Ruler ─────────────────────────────────────────── */
+.waterfall-ruler {
+  display: flex;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+  height: 24px;
+  align-items: flex-end;
+}
+
+.waterfall-ruler-label-col {
+  width: 260px;
+  min-width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.waterfall-ruler-bar-col {
+  flex: 1;
+  position: relative;
+  height: 100%;
+}
+
+.ruler-mark {
+  position: absolute;
+  bottom: 4px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.ruler-mark:first-child {
+  transform: translateX(0);
+}
+
+.ruler-mark:last-child {
+  transform: translateX(-100%);
+}
+
+/* ─── Waterfall Body ─────────────────────────────────────────── */
+.waterfall-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ─── Span Row ───────────────────────────────────────────────── */
+.waterfall-row {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 32px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+  animation: fadeIn 0.25s ease both;
+}
+
+.waterfall-row:hover {
+  background: var(--bg-hover);
+}
+
+.waterfall-row:last-child {
+  border-bottom: none;
+}
+
+.waterfall-row-error {
+  background: rgba(255, 107, 107, 0.03);
+}
+
+.waterfall-row-error:hover {
+  background: rgba(255, 107, 107, 0.06);
+}
+
+.waterfall-row-expanded {
+  background: var(--bg-primary);
+}
+
+/* ─── Label Column ───────────────────────────────────────────── */
+.waterfall-label-col {
+  width: 260px;
+  min-width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: var(--space-sm);
+  border-right: 1px solid var(--border-subtle);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.waterfall-expand-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.waterfall-service-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.waterfall-span-name {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.waterfall-span-service {
+  font-size: 9px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: var(--space-xs);
+}
+
+/* ─── Bar Column ─────────────────────────────────────────────── */
+.waterfall-bar-col {
+  flex: 1;
+  position: relative;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.waterfall-bar {
+  position: absolute;
+  height: 16px;
+  border-radius: 3px;
+  opacity: 0.85;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3px;
+  transition: opacity var(--transition-fast);
+}
+
+.waterfall-row:hover .waterfall-bar {
+  opacity: 1;
+}
+
+.waterfall-bar-error {
+  background: var(--error) !important;
+  opacity: 0.75;
+}
+
+.waterfall-bar-label {
+  font-size: 9px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.waterfall-bar-label-outside {
+  position: absolute;
+  font-size: 9px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 32px;
+}
+
+/* ─── Tags Expansion ─────────────────────────────────────────── */
+.waterfall-tags {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md) var(--space-sm) 260px;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border-subtle);
+  animation: fadeIn 0.15s ease both;
+}
+
+.waterfall-tag-row {
+  display: flex;
+  gap: var(--space-md);
+  padding: 2px 0;
+  font-size: var(--text-xs);
+}
+
+.waterfall-tag-row:not(:last-child) {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.waterfall-tag-key {
+  width: 160px;
+  min-width: 160px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.waterfall-tag-value {
+  color: var(--text-bright);
+  word-break: break-all;
+}
