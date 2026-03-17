@@ -1,8 +1,8 @@
-# Arquitetura — n-gate
+# Arquitetura — ishin-gateway
 
 ## Visão Geral
 
-O n-gate é um API Gateway/Reverse Proxy construído sobre uma stack de alta performance:
+O ishin-gateway é um API Gateway/Reverse Proxy construído sobre uma stack de alta performance:
 
 - **Javalin 7** (Jetty 12) como servidor HTTP
 - **OkHttp 4** como cliente HTTP para backends
@@ -21,7 +21,7 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 
 ## Diagrama de Arquitetura
 
-![Arquitetura n-gate](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/architecture.puml)
+![Arquitetura ishin-gateway](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/ishin-gateway/main/docs/diagrams/architecture.puml)
 
 ---
 
@@ -29,12 +29,12 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 
 ### 1. EndpointManager
 
-- **Classe:** `dev.nishisan.ngate.manager.EndpointManager`
+- **Classe:** `dev.nishisan.ishin.manager.EndpointManager`
 - **Responsabilidade:** Bootstrap do sistema. Lê a configuração (`adapter.yaml`), cria o `EndpointWrapper`, inicializa listeners e inicia os servidores Javalin.
 
 ### 2. EndpointWrapper
 
-- **Classe:** `dev.nishisan.ngate.http.EndpointWrapper`
+- **Classe:** `dev.nishisan.ishin.http.EndpointWrapper`
 - **Responsabilidade:** Registra rotas HTTP no Javalin para cada listener configurado. Para cada request:
   1. Cria um root span de tracing (com extração B3)
   2. Adiciona tags HTTP semânticas
@@ -44,7 +44,7 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 
 ### 3. HttpProxyManager
 
-- **Classe:** `dev.nishisan.ngate.http.HttpProxyManager`
+- **Classe:** `dev.nishisan.ishin.http.HttpProxyManager`
 - **Responsabilidade:** Core do proxy. Gerencia o ciclo completo de um request:
   1. Avalia regras Groovy (`evalDynamicRules`)
   2. Resolve o backend de destino
@@ -55,7 +55,7 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 
 ### 4.5. UpstreamPoolManager
 
-- **Classe:** `dev.nishisan.ngate.upstream.UpstreamPoolManager`
+- **Classe:** `dev.nishisan.ishin.upstream.UpstreamPoolManager`
 - **Responsabilidade:** Gerencia instâncias de `UpstreamPool` por backend. Ponto de entrada para seleção de membros upstream:
   - `selectMember(backendName)` — seleciona o próximo membro saudável via strategy do pool
   - `initialize(backends)` — cria pools a partir da configuração de backends
@@ -64,7 +64,7 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 
 ### 4. HttpWorkLoad
 
-- **Classe:** `dev.nishisan.ngate.http.HttpWorkLoad`
+- **Classe:** `dev.nishisan.ishin.http.HttpWorkLoad`
 - **Responsabilidade:** Objeto de contexto que carrega o estado de um request através do pipeline:
   - `request` — O request HTTP adaptado (pode ser modificado pelo Groovy)
   - `upstreamResponse` — A resposta recebida do backend
@@ -85,7 +85,7 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 
 ### 6. OAuthClientManager
 
-- **Classe:** `dev.nishisan.ngate.auth.OAuthClientManager`
+- **Classe:** `dev.nishisan.ishin.auth.OAuthClientManager`
 - **Responsabilidade:** Gerencia tokens OAuth2 para backends que requerem autenticação:
   - Cache de tokens com renovação automática
   - Suporte a refresh tokens
@@ -93,7 +93,7 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 
 ### 7. Token Decoders
 
-- **Interface:** `dev.nishisan.ngate.auth.ITokenDecoder`
+- **Interface:** `dev.nishisan.ishin.auth.ITokenDecoder`
 - **Implementações:**
   - `JWTTokenDecoder` — Decodificação JWT built-in via JWKS
   - `CustomClosureDecoder` — Decodificação customizada via script Groovy
@@ -101,24 +101,24 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 
 ### 8. TracerService
 
-- **Classe:** `dev.nishisan.ngate.observabitliy.service.TracerService`
+- **Classe:** `dev.nishisan.ishin.observabitliy.service.TracerService`
 - **Responsabilidade:** Gerencia instâncias de `Tracing` e `Tracer` (Brave). Cada listener tem seu próprio service name. O sender usa OkHttp para enviar spans ao Zipkin.
 
 ### 9. RateLimitManager
 
-- **Classe:** `dev.nishisan.ngate.http.ratelimit.RateLimitManager`
+- **Classe:** `dev.nishisan.ishin.http.ratelimit.RateLimitManager`
 - **Responsabilidade:** Engine de rate limiting baseada em `java.util.concurrent.Semaphore` com reset periódico:
   - Zonas nomeadas com N permits, resetadas por `ScheduledExecutorService`
   - **Modo nowait:** `tryAcquire()` sem timeout — rejeita imediatamente
   - **Modo stall:** `tryAcquire(timeout)` — bloqueia virtual thread
-  - Métricas gauge via Micrometer (`ngate.ratelimit.available_permits`)
+  - Métricas gauge via Micrometer (`ishin.ratelimit.available_permits`)
   - Configuração via bloco `rateLimiting:` do `adapter.yaml`
 
 ---
 
 ## Fluxo de um Request
 
-![Fluxo de Request](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/request_flow.puml)
+![Fluxo de Request](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/ishin-gateway/main/docs/diagrams/request_flow.puml)
 
 ### Etapas
 
@@ -181,7 +181,7 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 
 ## Streaming vs Materialização
 
-O n-gate suporta dois modos de transferência de resposta:
+O ishin-gateway suporta dois modos de transferência de resposta:
 
 ### Streaming (`returnPipe = true`, padrão)
 
@@ -215,40 +215,40 @@ workload.returnPipe = false  // materializa para permitir inspeção
 
 | Pacote | Responsabilidade |
 |--------|-----------------|
-| `dev.nishisan.ngate` | Classe principal (`NGateApplication`) |
-| `dev.nishisan.ngate.auth` | Autenticação: JWT, OAuth, Token Decoders |
-| `dev.nishisan.ngate.auth.jwt` | Implementações JWT (built-in e closure) |
-| `dev.nishisan.ngate.auth.wrapper` | Wrappers para tokens |
-| `dev.nishisan.ngate.cluster` | Cluster mode: `ClusterService` (NGrid lifecycle, leadership, DistributedMap) |
-| `dev.nishisan.ngate.configuration` | POJOs de configuração mapeados do `adapter.yaml` |
-| `dev.nishisan.ngate.exception` | Exceções customizadas (SSO, Token) |
-| `dev.nishisan.ngate.groovy` | `ProtectedBinding` — binding seguro para Groovy |
-| `dev.nishisan.ngate.http` | Core: proxy, workload, adapters, context wrapper |
-| `dev.nishisan.ngate.http.circuit` | `BackendCircuitBreakerManager` (Resilience4j) |
-| `dev.nishisan.ngate.http.ratelimit` | `RateLimitManager`, `RateLimitResult` — engine de rate limiting |
-| `dev.nishisan.ngate.http.clients` | Utilitários de HTTP client |
-| `dev.nishisan.ngate.http.synth` | Respostas HTTP sintéticas |
-| `dev.nishisan.ngate.manager` | Gerenciadores de configuração e endpoints |
-| `dev.nishisan.ngate.upstream` | Upstream Pool: `UpstreamPoolManager`, `UpstreamPool`, `UpstreamMemberState`, `UpstreamHealthChecker` |
-| `dev.nishisan.ngate.tunnel` | Tunnel Mode: `TunnelService`, `TunnelEngine`, `TunnelRegistry`, `VirtualPortGroup`, `BackendMember` |
-| `dev.nishisan.ngate.tunnel.lb` | Algoritmos de LB: `RoundRobinBalancer`, `LeastConnectionsBalancer`, `WeightedRoundRobinBalancer` |
-| `dev.nishisan.ngate.observabitliy` | TracerService, SpanWrapper, TracerWrapper, ProxyMetrics |
+| `dev.nishisan.ishin` | Classe principal (`IshinGatewayApplication`) |
+| `dev.nishisan.ishin.auth` | Autenticação: JWT, OAuth, Token Decoders |
+| `dev.nishisan.ishin.auth.jwt` | Implementações JWT (built-in e closure) |
+| `dev.nishisan.ishin.auth.wrapper` | Wrappers para tokens |
+| `dev.nishisan.ishin.cluster` | Cluster mode: `ClusterService` (NGrid lifecycle, leadership, DistributedMap) |
+| `dev.nishisan.ishin.configuration` | POJOs de configuração mapeados do `adapter.yaml` |
+| `dev.nishisan.ishin.exception` | Exceções customizadas (SSO, Token) |
+| `dev.nishisan.ishin.groovy` | `ProtectedBinding` — binding seguro para Groovy |
+| `dev.nishisan.ishin.http` | Core: proxy, workload, adapters, context wrapper |
+| `dev.nishisan.ishin.http.circuit` | `BackendCircuitBreakerManager` (Resilience4j) |
+| `dev.nishisan.ishin.http.ratelimit` | `RateLimitManager`, `RateLimitResult` — engine de rate limiting |
+| `dev.nishisan.ishin.http.clients` | Utilitários de HTTP client |
+| `dev.nishisan.ishin.http.synth` | Respostas HTTP sintéticas |
+| `dev.nishisan.ishin.manager` | Gerenciadores de configuração e endpoints |
+| `dev.nishisan.ishin.upstream` | Upstream Pool: `UpstreamPoolManager`, `UpstreamPool`, `UpstreamMemberState`, `UpstreamHealthChecker` |
+| `dev.nishisan.ishin.tunnel` | Tunnel Mode: `TunnelService`, `TunnelEngine`, `TunnelRegistry`, `VirtualPortGroup`, `BackendMember` |
+| `dev.nishisan.ishin.tunnel.lb` | Algoritmos de LB: `RoundRobinBalancer`, `LeastConnectionsBalancer`, `WeightedRoundRobinBalancer` |
+| `dev.nishisan.ishin.observabitliy` | TracerService, SpanWrapper, TracerWrapper, ProxyMetrics |
 
 ---
 
 ## Cluster Mode (NGrid)
 
-O n-gate suporta um **cluster mode opt-in** que permite múltiplas instâncias coordenarem estado via mesh TCP. O cluster é alimentado pela biblioteca [NGrid](https://github.com/nishisan-dev/nishi-utils) (nishi-utils).
+O ishin-gateway suporta um **cluster mode opt-in** que permite múltiplas instâncias coordenarem estado via mesh TCP. O cluster é alimentado pela biblioteca [NGrid](https://github.com/nishisan-dev/nishi-utils) (nishi-utils).
 
 ### Topologia
 
-![Topologia Cluster](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/cluster_topology.puml)
+![Topologia Cluster](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/ishin-gateway/main/docs/diagrams/cluster_topology.puml)
 
 Cada instância embarca um `NGridNode` que forma um mesh TCP com os demais nós. O mesh utiliza leader election baseada em quorum/epoch fencing e `DistributedMap` para replicação de estado.
 
 ### ClusterService
 
-- **Classe:** `dev.nishisan.ngate.cluster.ClusterService`
+- **Classe:** `dev.nishisan.ishin.cluster.ClusterService`
 - **Responsabilidade:** Gerencia o lifecycle do `NGridNode` embarcado. Inicializado via `@EventListener(ApplicationReadyEvent)`:
   1. Lê o bloco `cluster:` do `adapter.yaml`
   2. Se `enabled: false` (default), opera em modo standalone transparente
@@ -272,7 +272,7 @@ Tokens OAuth2 são compartilhados entre instâncias via `DistributedMap<String, 
 
 O deploy de scripts Groovy é feito via Admin API (`POST /admin/rules/deploy`) e replicado no cluster:
 
-1. O nó que recebe o deploy aplica localmente e publica o `RulesBundle` no `DistributedMap("ngate-rules")`
+1. O nó que recebe o deploy aplica localmente e publica o `RulesBundle` no `DistributedMap("ishin-rules")`
 2. Followers detectam nova versão via polling thread (5s) e aplicam automaticamente
 3. O `GroovyScriptEngine` é substituído via swap atômico (`volatile`)
 
@@ -280,15 +280,15 @@ O deploy de scripts Groovy é feito via Admin API (`POST /admin/rules/deploy`) e
 
 ## Tunnel Mode (TCP L4 Load Balancer)
 
-O n-gate suporta um **tunnel mode** que funciona como TCP L4 load balancer, eliminando a necessidade de load balancers externos. O tunnel recebe conexões TCP e as distribui entre múltiplas instâncias proxy via algoritmos de balanceamento.
+O ishin-gateway suporta um **tunnel mode** que funciona como TCP L4 load balancer, eliminando a necessidade de load balancers externos. O tunnel recebe conexões TCP e as distribui entre múltiplas instâncias proxy via algoritmos de balanceamento.
 
 ### Topologia
 
-![Topologia Tunnel](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/tunnel_mode.puml)
+![Topologia Tunnel](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/ishin-gateway/main/docs/diagrams/tunnel_mode.puml)
 
 ### Princípio — Um processo é um OU outro
 
-Um processo n-gate roda com `mode: proxy` OU `mode: tunnel`, nunca ambos. O tunnel se comporta como um listener TCP puro que distribui conexões entre proxies registrados.
+Um processo ishin-gateway roda com `mode: proxy` OU `mode: tunnel`, nunca ambos. O tunnel se comporta como um listener TCP puro que distribui conexões entre proxies registrados.
 
 ### Componentes
 
@@ -303,7 +303,7 @@ Um processo n-gate roda com `mode: proxy` OU `mode: tunnel`, nunca ambos. O tunn
 
 ### Registro (Push Model)
 
-Cada proxy (`mode: proxy`) com `tunnel.registration.enabled: true` publica um `TunnelRegistryEntry` no NGrid `DistributedMap("ngate-tunnel-registry")`. O registro contém:
+Cada proxy (`mode: proxy`) com `tunnel.registration.enabled: true` publica um `TunnelRegistryEntry` no NGrid `DistributedMap("ishin-tunnel-registry")`. O registro contém:
 - `nodeId`, `host`, `listeners[]` (virtualPort → realPort), `status`, `weight`, `keepaliveInterval`
 
 O proxy mantém keepalive periódico (default: 3s). No shutdown, entra em `DRAINING` e aguarda `drainTimeout` antes de remover o registro.
@@ -339,9 +339,9 @@ Para referência de configuração, veja [docs/configuration.md](configuration.m
 
 ## Circuit Breaker
 
-O n-gate protege backends com [Resilience4j](https://resilience4j.readme.io/), gerenciado pelo `BackendCircuitBreakerManager`.
+O ishin-gateway protege backends com [Resilience4j](https://resilience4j.readme.io/), gerenciado pelo `BackendCircuitBreakerManager`.
 
-- **Classe:** `dev.nishisan.ngate.http.circuit.BackendCircuitBreakerManager`
+- **Classe:** `dev.nishisan.ishin.http.circuit.BackendCircuitBreakerManager`
 - **Ativação:** Bloco `circuitBreaker:` no `adapter.yaml` com `enabled: true`
 - **Isolamento:** Um `CircuitBreaker` independente por backend (nome)
 - **Transições:** `CLOSED → OPEN → HALF_OPEN → CLOSED`
@@ -358,22 +358,22 @@ O `ProxyMetrics` instrumenta o hot path com counters e timers Micrometer:
 
 | Métrica | Tipo | Tags | Descrição |
 |---------|------|------|-----------|
-| `ngate.requests.total` | Counter | listener, method, status | Total de requests inbound |
-| `ngate.request.duration` | Timer | listener, method | Latência inbound (ms) |
-| `ngate.request.errors` | Counter | listener, method | Erros inbound |
-| `ngate.upstream.requests` | Counter | backend, method, status | Total de requests upstream |
-| `ngate.upstream.duration` | Timer | backend, method | Latência upstream (ms) |
-| `ngate.upstream.errors` | Counter | backend, method | Erros upstream |
-| `ngate.ratelimit.total` | Counter | scope, zone, result | Eventos de rate limiting (ALLOWED/REJECTED/DELAYED) |
-| `ngate.ratelimit.available_permits` | Gauge | key | Permits disponíveis por rate limiter |
-| `ngate.cluster.active.members` | Gauge | — | Membros ativos no cluster |
-| `ngate.cluster.is.leader` | Gauge | — | 1=leader, 0=follower |
-| `ngate.tunnel.connections.total` | Counter | vport, member | Conexões TCP aceitas no tunnel |
-| `ngate.tunnel.connections.active` | Gauge | vport, member | Conexões TCP ativas |
-| `ngate.tunnel.bytes.sent` | Counter | vport, member | Bytes enviados (client→backend) |
-| `ngate.tunnel.bytes.received` | Counter | vport, member | Bytes recebidos (backend→client) |
-| `ngate.tunnel.connect.errors` | Counter | vport, member, error | Erros de conexão ao backend |
-| `ngate.tunnel.pool.members` | Gauge | vport, status | Membros por status no pool |
+| `ishin.requests.total` | Counter | listener, method, status | Total de requests inbound |
+| `ishin.request.duration` | Timer | listener, method | Latência inbound (ms) |
+| `ishin.request.errors` | Counter | listener, method | Erros inbound |
+| `ishin.upstream.requests` | Counter | backend, method, status | Total de requests upstream |
+| `ishin.upstream.duration` | Timer | backend, method | Latência upstream (ms) |
+| `ishin.upstream.errors` | Counter | backend, method | Erros upstream |
+| `ishin.ratelimit.total` | Counter | scope, zone, result | Eventos de rate limiting (ALLOWED/REJECTED/DELAYED) |
+| `ishin.ratelimit.available_permits` | Gauge | key | Permits disponíveis por rate limiter |
+| `ishin.cluster.active.members` | Gauge | — | Membros ativos no cluster |
+| `ishin.cluster.is.leader` | Gauge | — | 1=leader, 0=follower |
+| `ishin.tunnel.connections.total` | Counter | vport, member | Conexões TCP aceitas no tunnel |
+| `ishin.tunnel.connections.active` | Gauge | vport, member | Conexões TCP ativas |
+| `ishin.tunnel.bytes.sent` | Counter | vport, member | Bytes enviados (client→backend) |
+| `ishin.tunnel.bytes.received` | Counter | vport, member | Bytes recebidos (backend→client) |
+| `ishin.tunnel.connect.errors` | Counter | vport, member, error | Erros de conexão ao backend |
+| `ishin.tunnel.pool.members` | Gauge | vport, status | Membros por status no pool |
 
 Endpoint: `GET /actuator/prometheus` (porta `9190`)
 

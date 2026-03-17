@@ -1,5 +1,5 @@
 /**
- * n-gate Default Rules
+ * Ishin Gateway Default Rules
  *
  * This is a sample rule file that comes with the .deb package.
  * Customize it to define your routing logic.

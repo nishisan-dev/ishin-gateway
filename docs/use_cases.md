@@ -1,4 +1,4 @@
-# Casos de Uso — n-gate
+# Casos de Uso — ishin-gateway
 
 Cenários end-to-end com configuração, scripts Groovy e comandos de validação.
 
@@ -6,10 +6,10 @@ Cenários end-to-end com configuração, scripts Groovy e comandos de validaçã
 
 ## 1. API Gateway Simples — Proxy Transparente
 
-O cenário mais básico: o n-gate atua como proxy transparente para um backend único.
+O cenário mais básico: o ishin-gateway atua como proxy transparente para um backend único.
 
 ```
-Cliente ──▶ n-gate :8080 ──▶ Backend API :3000
+Cliente ──▶ ishin-gateway :8080 ──▶ Backend API :3000
 ```
 
 ### adapter.yaml
@@ -70,11 +70,11 @@ curl -i http://localhost:8080/api/users
 
 ## 2. Multi-Backend com Roteamento por Path
 
-O n-gate roteia requests para diferentes backends com base no path.
+O ishin-gateway roteia requests para diferentes backends com base no path.
 
 ```
                          ┌──▶ users-service :3001
-Cliente ──▶ n-gate :8080─┼──▶ products-service :3002
+Cliente ──▶ ishin-gateway :8080─┼──▶ products-service :3002
                          └──▶ orders-service :3003
 ```
 
@@ -152,10 +152,10 @@ curl -i http://localhost:8080/api/orders?status=open  # → orders-service
 
 ## 3. Gateway com Autenticação OAuth2
 
-O n-gate valida JWT na entrada e injeta OAuth2 token nas chamadas ao backend.
+O ishin-gateway valida JWT na entrada e injeta OAuth2 token nas chamadas ao backend.
 
 ```
-Cliente ──JWT──▶ n-gate :9090 ──Bearer──▶ API Protegida
+Cliente ──JWT──▶ ishin-gateway :9090 ──Bearer──▶ API Protegida
                     │
                     └── Keycloak (obtém token + valida JWT)
 ```
@@ -175,7 +175,7 @@ endpoints:
         defaultBackend: "protected-api"
         secured: true
         secureProvider:
-          providerClass: "dev.nishisan.ngate.auth.jwt.JWTTokenDecoder"
+          providerClass: "dev.nishisan.ishin.auth.jwt.JWTTokenDecoder"
           name: "keycloak-jwt"
           options:
             issuerUri: http://keycloak:8080/realms/my-realm
@@ -256,10 +256,10 @@ curl -i http://localhost:9090/health
 
 ## 4. Mock/Stub de API
 
-O n-gate gera respostas sintéticas para endpoints que ainda não têm backend, ideal para desenvolvimento e testes.
+O ishin-gateway gera respostas sintéticas para endpoints que ainda não têm backend, ideal para desenvolvimento e testes.
 
 ```
-Cliente ──▶ n-gate :8080 ──✗──▶ (nenhum backend chamado)
+Cliente ──▶ ishin-gateway :8080 ──✗──▶ (nenhum backend chamado)
                 │
                 └── Resposta gerada pelo Groovy
 ```
@@ -362,7 +362,7 @@ curl http://localhost:8080/api/unknown
 Response processors modificam a resposta do backend antes de enviar ao cliente.
 
 ```
-Cliente ◀── Response modificada ── n-gate ◀── Response original ── Backend
+Cliente ◀── Response modificada ── ishin-gateway ◀── Response original ── Backend
 ```
 
 ### Rules.groovy
@@ -375,7 +375,7 @@ workload.returnPipe = false
 
 // Processor que adiciona metadata à resposta
 def enrichProcessor = { wl ->
-    wl.clientResponse.addHeader("X-Gateway", "n-gate")
+    wl.clientResponse.addHeader("X-Gateway", "ishin-gateway")
     wl.clientResponse.addHeader("X-Processed-At", new Date().format("yyyy-MM-dd'T'HH:mm:ss"))
     wl.clientResponse.addHeader("X-Listener", listener)
 }
@@ -389,7 +389,7 @@ workload.addResponseProcessor('enrichProcessor', enrichProcessor)
 curl -i http://localhost:8080/api/data
 
 # Headers adicionados pelo processor:
-# < X-Gateway: n-gate
+# < X-Gateway: ishin-gateway
 # < X-Processed-At: 2026-03-08T15:00:00
 # < X-Listener: http
 ```
@@ -403,7 +403,7 @@ Cenário isolado para medir o overhead puro do gateway, usando backend estático
 ```
                               ┌──▶ static-backend :8080 (Nginx)
 Cliente ──▶ benchmark.py ───┬┤
-                            └──▶ n-gate :9091 ──▶ static-backend :8080
+                            └──▶ ishin-gateway :9091 ──▶ static-backend :8080
 ```
 
 ### adapter.yaml (trecho)
@@ -444,19 +444,19 @@ python3 scripts/benchmark.py
 
 O benchmark compara:
 - **Porta 3080** — Nginx direto (baseline, sem proxy)
-- **Porta 9091** — n-gate → Nginx (overhead do gateway)
+- **Porta 9091** — ishin-gateway → Nginx (overhead do gateway)
 
-A diferença entre os dois é o **overhead puro** do n-gate (parsing, Groovy, OkHttp, tracing, etc.).
+A diferença entre os dois é o **overhead puro** do ishin-gateway (parsing, Groovy, OkHttp, tracing, etc.).
 
 ---
 
 ## 7. Composição de APIs
 
-O n-gate chama múltiplos backends e compõe a resposta.
+O ishin-gateway chama múltiplos backends e compõe a resposta.
 
 ```
                               ┌──▶ users-service
-Cliente ──▶ n-gate :8080 ────┼──▶ products-service
+Cliente ──▶ ishin-gateway :8080 ────┼──▶ products-service
                               └── Resposta combinada
 ```
 
@@ -521,7 +521,7 @@ curl http://localhost:8080/api/dashboard
 
 ## 8. Cluster com Token Sharing (NGrid)
 
-Múltiplas instâncias do n-gate operam como cluster coordenado, compartilhando tokens OAuth2 e permitindo deploy atômico de regras Groovy.
+Múltiplas instâncias do ishin-gateway operam como cluster coordenado, compartilhando tokens OAuth2 e permitindo deploy atômico de regras Groovy.
 
 ```
                      ┌────────────────────────────────┐
@@ -529,7 +529,7 @@ Múltiplas instâncias do n-gate operam como cluster coordenado, compartilhando 
                      └──────┬──────────┬──────────┬───┘
                             │          │          │
                      ┌──────▼──┐ ┌────▼────┐ ┌──▼──────┐
-                     │ n-gate  │ │ n-gate  │ │ n-gate  │
+                     │ ishin-gateway  │ │ ishin-gateway  │ │ ishin-gateway  │
                      │ node-1  │ │ node-2  │ │ node-3  │
                      │  :9091  │ │  :9091  │ │  :9091  │
                      │  :7100◄─┼─►:7100◄──┼─►:7100   │
@@ -583,11 +583,11 @@ cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-cluster"
+  clusterName: "ishin-cluster"
   seeds:
-    - "ngate-node1:7100"
-    - "ngate-node2:7100"
-    - "ngate-node3:7100"
+    - "ishin-node1:7100"
+    - "ishin-node2:7100"
+    - "ishin-node3:7100"
   replicationFactor: 2
   dataDirectory: "/tmp/ngrid-data"
 ```
@@ -604,10 +604,10 @@ docker compose -f docker-compose.yml -f docker-compose.cluster.yml up -d
 ```bash
 # Health check dos 3 nós (Actuator — porta 929x)
 curl -s http://localhost:9291/actuator/health | jq '.components.cluster'
-# {"status":"UP","details":{"clusterMode":"ACTIVE","clusterNodeId":"ngate-node1","isLeader":true,"activeMembers":["ngate-node1","ngate-node2","ngate-node3"]}}
+# {"status":"UP","details":{"clusterMode":"ACTIVE","clusterNodeId":"ishin-node1","isLeader":true,"activeMembers":["ishin-node1","ishin-node2","ishin-node3"]}}
 
 curl -s http://localhost:9292/actuator/health | jq '.components.cluster'
-# {"status":"UP","details":{"clusterMode":"ACTIVE","clusterNodeId":"ngate-node2","isLeader":false,...}}
+# {"status":"UP","details":{"clusterMode":"ACTIVE","clusterNodeId":"ishin-node2","isLeader":false,...}}
 
 # Proxy via LB (round-robin entre os 3 nós)
 curl -i http://localhost:5080/qualquer/path
@@ -618,9 +618,9 @@ curl -i http://localhost:9192/qualquer/path   # nó 2
 curl -i http://localhost:9193/qualquer/path   # nó 3
 
 # Verificar métricas do cluster via Prometheus
-curl -s http://localhost:9291/actuator/prometheus | grep ngate_cluster
-# ngate_cluster_active_members 3.0
-# ngate_cluster_is_leader 1.0
+curl -s http://localhost:9291/actuator/prometheus | grep ishin_cluster
+# ishin_cluster_active_members 3.0
+# ishin_cluster_is_leader 1.0
 ```
 
 > Para testes automatizados de cluster (Testcontainers), veja [docs/cluster_integration_tests.md](cluster_integration_tests.md).

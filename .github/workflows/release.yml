@@ -52,15 +52,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: n-gate-ui/package-lock.json
+          cache-dependency-path: ishin-gateway-ui/package-lock.json
 
       - name: Install frontend dependencies
         run: npm ci
-        working-directory: n-gate-ui
+        working-directory: ishin-gateway-ui
 
-      - name: Build frontend (n-gate-ui)
+      - name: Build frontend (ishin-gateway-ui)
         run: npm run build
-        working-directory: n-gate-ui
+        working-directory: ishin-gateway-ui
 
       - name: Set project version from tag
         run: |
@@ -83,29 +83,29 @@ jobs:
       - name: Build .deb package
         run: |
           VERSION="${RELEASE_VERSION}"
-          PKG="n-gate_${VERSION}_all"
+          PKG="ishin-gateway_${VERSION}_all"
 
           # Montar árvore FHS
-          mkdir -p "${PKG}/opt/n-gate"
-          mkdir -p "${PKG}/etc/n-gate/rules/default"
-          mkdir -p "${PKG}/etc/n-gate/ssl"
-          mkdir -p "${PKG}/var/log/n-gate"
+          mkdir -p "${PKG}/opt/ishin-gateway"
+          mkdir -p "${PKG}/etc/ishin-gateway/rules/default"
+          mkdir -p "${PKG}/etc/ishin-gateway/ssl"
+          mkdir -p "${PKG}/var/log/ishin-gateway"
           mkdir -p "${PKG}/lib/systemd/system"
           mkdir -p "${PKG}/etc/logrotate.d"
           mkdir -p "${PKG}/DEBIAN"
 
           # Copiar artefatos
-          cp target/n-gate-*.jar "${PKG}/opt/n-gate/n-gate.jar"
-          cp debian/adapter-production.yaml "${PKG}/etc/n-gate/adapter.yaml"
-          cp debian/rules/default/Rules.groovy "${PKG}/etc/n-gate/rules/default/"
-          cp src/main/resources/log4j2.xml "${PKG}/etc/n-gate/"
-          cp debian/n-gate.service "${PKG}/lib/systemd/system/"
-          cp debian/n-gate.logrotate "${PKG}/etc/logrotate.d/n-gate"
+          cp target/ishin-gateway-*.jar "${PKG}/opt/ishin-gateway/ishin-gateway.jar"
+          cp debian/adapter-production.yaml "${PKG}/etc/ishin-gateway/adapter.yaml"
+          cp debian/rules/default/Rules.groovy "${PKG}/etc/ishin-gateway/rules/default/"
+          cp src/main/resources/log4j2.xml "${PKG}/etc/ishin-gateway/"
+          cp debian/ishin-gateway.service "${PKG}/lib/systemd/system/"
+          cp debian/ishin-gateway.logrotate "${PKG}/etc/logrotate.d/ishin-gateway"
 
           # CLI tool
           mkdir -p "${PKG}/usr/bin"
-          cp debian/ngate-cli "${PKG}/usr/bin/ngate-cli"
-          chmod 755 "${PKG}/usr/bin/ngate-cli"
+          cp debian/ishin-cli "${PKG}/usr/bin/ishin-cli"
+          chmod 755 "${PKG}/usr/bin/ishin-cli"
 
           # Control files
           sed "s/^Version:.*/Version: ${VERSION}/" debian/control > "${PKG}/DEBIAN/control"

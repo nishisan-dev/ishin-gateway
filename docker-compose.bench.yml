@@ -5,11 +5,11 @@
 #   docker compose -f docker-compose.yml -f docker-compose.bench.yml up -d
 #
 services:
-  n-gate:
+  ishin-gateway:
     environment:
       SPRING_PROFILES_DEFAULT: bench
       TRACING_ENABLED: "false"
     command:
       - /bin/bash
       - -lc
-      - mvn -s /tmp/maven-settings.xml -DskipTests package && java -Dspring.profiles.active=bench -jar target/n-gate-1.0-SNAPSHOT.jar
+      - mvn -s /tmp/maven-settings.xml -DskipTests package && java -Dspring.profiles.active=bench -jar target/ishin-gateway-1.0-SNAPSHOT.jar

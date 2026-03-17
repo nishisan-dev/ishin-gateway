@@ -1,6 +1,6 @@
-# Plano de Implementação — UI de Observabilidade do n-gate
+# Plano de Implementação — UI de Observabilidade do ishin-gateway
 
-Interface de observabilidade embutida no n-gate com topologia interativa, métricas Prometheus, traces Zipkin e histórico em H2 embedded. Visual "Nordic Tech" — Proposta A.
+Interface de observabilidade embutida no ishin-gateway com topologia interativa, métricas Prometheus, traces Zipkin e histórico em H2 embedded. Visual "Nordic Tech" — Proposta A.
 
 ## User Review Required
 
@@ -21,7 +21,7 @@ Interface de observabilidade embutida no n-gate com topologia interativa, métri
 
 Bloco `dashboard:` no `adapter.yaml` controla tudo. IP filter garante acesso restrito.
 
-#### [NEW] [DashboardConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/DashboardConfiguration.java)
+#### [NEW] [DashboardConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/DashboardConfiguration.java)
 
 POJO para o bloco `dashboard:` do adapter.yaml:
 ```yaml
@@ -45,11 +45,11 @@ dashboard:
 
 Campos: `enabled`, `port`, `bindAddress`, `allowedIps` (List\<String\>), `storage` (sub-objeto), `zipkin` (sub-objeto).
 
-#### [MODIFY] [ServerConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/ServerConfiguration.java)
+#### [MODIFY] [ServerConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/ServerConfiguration.java)
 
 Adicionar campo `private DashboardConfiguration dashboard;` com getter/setter, seguindo exatamente o padrão existente de `admin`, `cluster`, `tunnel`.
 
-#### [NEW] [DashboardIpFilter.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/dashboard/DashboardIpFilter.java)
+#### [NEW] [DashboardIpFilter.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/dashboard/DashboardIpFilter.java)
 
 Filtro de IP que suporta:
 - IPs exatos (IPv4 e IPv6)
@@ -62,7 +62,7 @@ Filtro de IP que suporta:
 
 ### Componente 2: Storage (H2 Embedded)
 
-#### [MODIFY] [pom.xml](file:///home/lucas/Projects/n-gate/pom.xml)
+#### [MODIFY] [pom.xml](file:///home/lucas/Projects/ishin-gateway/pom.xml)
 
 Adicionar dependências:
 ```xml
@@ -75,7 +75,7 @@ Adicionar dependências:
 
 > Não usaremos Spring Data JPA para manter leveza. Acesso via JDBC puro com `HikariCP` (já incluso no Spring Boot).
 
-#### [NEW] [DashboardStorageService.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/dashboard/storage/DashboardStorageService.java)
+#### [NEW] [DashboardStorageService.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/dashboard/storage/DashboardStorageService.java)
 
 - Inicializa H2 em file-mode (`jdbc:h2:file:./data/dashboard/metrics`)
 - Schema auto-criado no startup via DDL SQL embeddado
@@ -85,10 +85,10 @@ Adicionar dependências:
 - Métodos: `saveSnapshot()`, `queryMetrics(name, from, to)`, `saveEvent()`, `purgeExpired()`
 - Cleanup job com `@Scheduled` baseado em `retentionHours`
 
-#### [NEW] [MetricsCollectorService.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/dashboard/collector/MetricsCollectorService.java)
+#### [NEW] [MetricsCollectorService.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/dashboard/collector/MetricsCollectorService.java)
 
 - Scheduled task que lê métricas do `MeterRegistry` (in-process, sem HTTP)
-- Converte meters relevantes (`ngate.*`, `resilience4j.*`, `jvm.*`) em snapshots
+- Converte meters relevantes (`ishin.*`, `resilience4j.*`, `jvm.*`) em snapshots
 - Persiste via `DashboardStorageService` a cada `scrapeIntervalSeconds`
 - Rollup: armazena valor instantâneo de cada métrica com timestamp
 
@@ -96,7 +96,7 @@ Adicionar dependências:
 
 ### Componente 3: API REST + WebSocket (Javalin)
 
-#### [NEW] [DashboardServer.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/dashboard/DashboardServer.java)
+#### [NEW] [DashboardServer.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/dashboard/DashboardServer.java)
 
 Javalin standalone na porta `dashboard.port` (default 9200), seguindo o padrão do `EndpointWrapper`:
 - `before("/*")` → `DashboardIpFilter`
@@ -104,7 +104,7 @@ Javalin standalone na porta `dashboard.port` (default 9200), seguindo o padrão 
 - Fallback: qualquer rota não-API retorna `index.html` (SPA routing)
 - Lifecycle: start no `@PostConstruct`, stop no shutdown hook
 
-#### [NEW] [DashboardApiRoutes.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/dashboard/api/DashboardApiRoutes.java)
+#### [NEW] [DashboardApiRoutes.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/dashboard/api/DashboardApiRoutes.java)
 
 Endpoints REST no prefixo `/api/v1/`:
 
@@ -128,11 +128,11 @@ Endpoints REST no prefixo `/api/v1/`:
 
 ### Componente 4: React SPA
 
-#### [NEW] Diretório `n-gate-ui/`
+#### [NEW] Diretório `ishin-gateway-ui/`
 
 Scaffold via `npx create-vite`:
 ```
-n-gate-ui/
+ishin-gateway-ui/
   src/
     components/
       TopologyView/       # Grafo interativo (React Flow)
@@ -179,7 +179,7 @@ n-gate-ui/
 
 #### Build Integration
 
-#### [MODIFY] [pom.xml](file:///home/lucas/Projects/n-gate/pom.xml)
+#### [MODIFY] [pom.xml](file:///home/lucas/Projects/ishin-gateway/pom.xml)
 
 Adicionar `frontend-maven-plugin` para build do React durante `mvn package`:
 ```xml
@@ -188,7 +188,7 @@ Adicionar `frontend-maven-plugin` para build do React durante `mvn package`:
     <artifactId>frontend-maven-plugin</artifactId>
     <version>1.15.1</version>
     <configuration>
-        <workingDirectory>${project.basedir}/n-gate-ui</workingDirectory>
+        <workingDirectory>${project.basedir}/ishin-gateway-ui</workingDirectory>
         <installDirectory>target</installDirectory>
     </configuration>
     <executions>
@@ -206,13 +206,13 @@ O build do React é integrado ao Maven — `mvn package` produz o JAR com o SPA 
 
 ### Componente 5: Documentação
 
-#### [MODIFY] [observability.md](file:///home/lucas/Projects/n-gate/docs/observability.md)
+#### [MODIFY] [observability.md](file:///home/lucas/Projects/ishin-gateway/docs/observability.md)
 Nova seção sobre o Dashboard UI com configuração, endpoints API e screenshots.
 
-#### [MODIFY] [configuration.md](file:///home/lucas/Projects/n-gate/docs/configuration.md)
+#### [MODIFY] [configuration.md](file:///home/lucas/Projects/ishin-gateway/docs/configuration.md)
 Documentação do bloco `dashboard:` no adapter.yaml.
 
-#### [NEW] [dashboard_architecture.puml](file:///home/lucas/Projects/n-gate/docs/diagrams/dashboard_architecture.puml)
+#### [NEW] [dashboard_architecture.puml](file:///home/lucas/Projects/ishin-gateway/docs/diagrams/dashboard_architecture.puml)
 Diagrama C4 Component do dashboard.
 
 ---
@@ -223,14 +223,14 @@ Diagrama C4 Component do dashboard.
 
 **1. Teste do IP Filter**
 ```bash
-# Criar: src/test/java/dev/nishisan/ngate/dashboard/DashboardIpFilterTest.java
+# Criar: src/test/java/dev/nishisan/ishin/dashboard/DashboardIpFilterTest.java
 # Testar: IPs permitidos, IPs bloqueados, ranges CIDR, IPv6
 mvn test -pl . -Dtest=DashboardIpFilterTest
 ```
 
 **2. Teste do Storage Service**
 ```bash
-# Criar: src/test/java/dev/nishisan/ngate/dashboard/DashboardStorageServiceTest.java
+# Criar: src/test/java/dev/nishisan/ishin/dashboard/DashboardStorageServiceTest.java
 # Testar: insert de snapshots, query por range, purge de expirados
 # H2 in-memory para testes
 mvn test -pl . -Dtest=DashboardStorageServiceTest
@@ -238,7 +238,7 @@ mvn test -pl . -Dtest=DashboardStorageServiceTest
 
 **3. Teste de integração do Dashboard Server (Testcontainers)**
 ```bash
-# Criar: src/test/java/dev/nishisan/ngate/dashboard/DashboardIntegrationTest.java
+# Criar: src/test/java/dev/nishisan/ishin/dashboard/DashboardIntegrationTest.java
 # Testar: endpoint /api/v1/topology retorna 200, IP filter retorna 403
 mvn test -pl . -Dtest=DashboardIntegrationTest
 ```
@@ -246,7 +246,7 @@ mvn test -pl . -Dtest=DashboardIntegrationTest
 ### Validação no Browser
 
 **4. Smoke test do SPA**
-- Subir n-gate localmente com `dashboard.enabled: true`
+- Subir ishin-gateway localmente com `dashboard.enabled: true`
 - Acessar `http://localhost:9200` no browser
 - Verificar: SPA carrega, grafo topológico renderiza nós dos listeners e backends
 - Verificar: cards de métricas mostram dados em tempo real

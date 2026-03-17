@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────
-# n-gate — Multi-stage Docker Image
+# Ishin Gateway — Multi-stage Docker Image
 # ─────────────────────────────────────────────────────
 
 # Stage 1: Build
@@ -15,7 +15,7 @@ RUN mvn -s /tmp/settings.xml -DskipTests clean package -q
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=builder /build/target/n-gate-1.0-SNAPSHOT.jar app.jar
+COPY --from=builder /build/target/ishin-gateway-1.0-SNAPSHOT.jar app.jar
 COPY --from=builder /build/rules/ rules/
 EXPOSE 9091 9190 7100 18080
 ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:+ZGenerational", "-Xms128m", "-Xmx256m", "-jar", "app.jar"]

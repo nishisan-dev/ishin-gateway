@@ -14,7 +14,7 @@ skinparam NoteBackgroundColor #2C2E33
 skinparam TitleFontColor #748FFC
 skinparam TitleFontSize 18
 
-title n-gate — Dashboard de Observabilidade
+title ishin-gateway — Dashboard de Observabilidade
 
 rectangle "Browser" as browser #1A1B1E {
   component "React SPA\n(Vite + React 19)" as spa {
@@ -26,7 +26,7 @@ rectangle "Browser" as browser #1A1B1E {
   }
 }
 
-rectangle "n-gate Process" as ngate #1A1B1E {
+rectangle "ishin-gateway Process" as ishin #1A1B1E {
   rectangle "Dashboard Server\n(Javalin :9200)" as dashserver {
     component "IP Filter" as ipfilter
     component "REST API\n/api/v1/*" as restapi

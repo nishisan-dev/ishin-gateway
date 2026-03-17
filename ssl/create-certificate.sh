@@ -9,7 +9,7 @@ CERT_NAME="${CERTIFICATE_NAME}.crt"
 openssl genpkey -algorithm RSA -out "${KEY_NAME}" -pkeyopt rsa_keygen_bits:2048
 
 # Gera o certificado autoassinado com validade de 5 anos (1825 dias)
-openssl req -x509 -new -nodes -key "${KEY_NAME}" -sha256 -days 1825 -out "${CERT_NAME}" -subj "/C=BR/ST=Parana/L=Curitiba/O=Nishisan/OU=Dev/CN=ngate.nishisan.dev"
+openssl req -x509 -new -nodes -key "${KEY_NAME}" -sha256 -days 1825 -out "${CERT_NAME}" -subj "/C=BR/ST=Parana/L=Curitiba/O=Nishisan/OU=Dev/CN=ishin.nishisan.dev"
 
 echo "Certificado e chave gerados com sucesso!"
 echo "Certificado: ${CERT_NAME}"

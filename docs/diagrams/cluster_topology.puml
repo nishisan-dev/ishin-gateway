@@ -1,23 +1,23 @@
 @startuml cluster_topology
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
-title n-gate — Topologia Cluster (C4)
+title ishin-gateway — Topologia Cluster (C4)
 
 Person(client, "Cliente HTTP", "Aplicação ou usuário que consome APIs")
 
 System_Boundary(lb_boundary, "Load Balancer") {
-    Container(nginx_lb, "nginx", "Round-Robin", "Distribui requests entre os nós n-gate")
+    Container(nginx_lb, "nginx", "Round-Robin", "Distribui requests entre os nós ishin-gateway")
 }
 
-System_Boundary(cluster_boundary, "n-gate Cluster (NGrid Mesh)") {
-    Container(node1, "n-gate Node 1", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
-    Container(node2, "n-gate Node 2", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
-    Container(node3, "n-gate Node 3", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
+System_Boundary(cluster_boundary, "ishin-gateway Cluster (NGrid Mesh)") {
+    Container(node1, "ishin-gateway Node 1", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
+    Container(node2, "ishin-gateway Node 2", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
+    Container(node3, "ishin-gateway Node 3", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
 }
 
 System_Boundary(state_boundary, "Estado Distribuído (DistributedMap)") {
-    ContainerDb(token_map, "ngate-tokens", "NGrid DistributedMap", "Tokens OAuth2 compartilhados (POW-RBL)")
-    ContainerDb(rules_map, "ngate-rules", "NGrid DistributedMap", "RulesBundle para deploy atômico de scripts Groovy")
+    ContainerDb(token_map, "ishin-tokens", "NGrid DistributedMap", "Tokens OAuth2 compartilhados (POW-RBL)")
+    ContainerDb(rules_map, "ishin-rules", "NGrid DistributedMap", "RulesBundle para deploy atômico de scripts Groovy")
 }
 
 System_Ext(backends, "Backend Services", "APIs de destino (HTTP/HTTPS)")

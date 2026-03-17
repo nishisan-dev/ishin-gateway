@@ -1,4 +1,4 @@
-# n-gate
+# ishin-gateway
 
 > API Gateway & Reverse Proxy de alta performance com motor de regras dinâmicas Groovy, cluster mode (NGrid), circuit breaker, rate limiting, observabilidade integrada (Zipkin + Prometheus) e autenticação OAuth2/JWT — construído em Java 21.
 
@@ -8,16 +8,16 @@
 
 ---
 
-## O que é o n-gate?
+## O que é o ishin-gateway?
 
-O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre seus clientes e backends. Ele permite:
+O **ishin-gateway** é um gateway HTTP programável que atua como proxy reverso entre seus clientes e backends. Ele permite:
 
 - **Roteamento dinâmico** — Scripts Groovy decidem em runtime para qual backend encaminhar o request, podendo alterar headers, path, query string e body.
 - **Autenticação transparente** — Injeta tokens OAuth2 automaticamente nos requests upstream e valida JWT nos requests de entrada.
 - **Observabilidade nativa** — Gera traces distribuídos (Brave/Zipkin) com 11+ spans por request, incluindo propagação B3 bidirecional e header `x-trace-id` para correlação.
 - **Streaming de alta performance** — Modo `returnPipe` transfere bytes diretamente do upstream para o cliente sem materialização em memória.
 
-[![Assista ao vídeo de apresentação do n-gate](https://img.youtube.com/vi/ROavAFwytzE/maxresdefault.jpg)](https://www.youtube.com/watch?v=ROavAFwytzE)
+[![Assista ao vídeo de apresentação do ishin-gateway](https://img.youtube.com/vi/ROavAFwytzE/maxresdefault.jpg)](https://www.youtube.com/watch?v=ROavAFwytzE)
 
 ---
 
@@ -40,7 +40,7 @@ O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre s
 | **Cluster Mode** | NGrid mesh TCP com leader election e DistributedMap para coordenação entre instâncias |
 | **Token Sharing** | Tokens OAuth2 compartilhados via POW-RBL (Publish-on-write + Read-before-login) |
 | **Rules Deploy** | Deploy atômico de scripts Groovy via Admin API (`POST /admin/rules/deploy`) com replicação cluster |
-| **CLI (`ngate-cli`)** | Utilitário de linha de comando para deploy, listagem e consulta de versão de rules — instalado via `.deb` em `/usr/bin/ngate-cli` |
+| **CLI (`ishin-cli`)** | Utilitário de linha de comando para deploy, listagem e consulta de versão de rules — instalado via `.deb` em `/usr/bin/ishin-cli` |
 | **Circuit Breaker** | Resilience4j por backend — CLOSED/OPEN/HALF_OPEN com métricas Micrometer |
 | **Rate Limiting** | Controle de taxa por listener, rota e backend com modos `stall` (delay) e `nowait` (429 imediato) |
 | **Upstream Pool** | Load balancing (round-robin/failover/random) com priority groups, health checks ativos via Virtual Threads e failover automático |
@@ -53,7 +53,7 @@ O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre s
 
 ```
                     ┌─────────────────────────────────────────┐
- Clients ──────────▶│              n-gate                     │
+ Clients ──────────▶│              ishin-gateway                     │
                     │                                         │
                     │  Javalin 7 (Jetty 12)                   │
                     │  ├── Listener :9090 (secured)           │
@@ -75,7 +75,7 @@ O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre s
                     ──── Brave/Zipkin Tracing ────
 ```
 
-![Arquitetura n-gate](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/architecture.puml)
+![Arquitetura ishin-gateway](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/ishin-gateway/main/docs/diagrams/architecture.puml)
 
 ### Topologia Cluster
 
@@ -85,7 +85,7 @@ O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre s
                      └──────┬──────────┬──────────┬───────────────┘
                             │          │          │
                      ┌──────▼───┐ ┌────▼─────┐ ┌─▼────────┐
-                     │ n-gate-1 │ │ n-gate-2 │ │ n-gate-3 │
+                     │ ishin-gateway-1 │ │ ishin-gateway-2 │ │ ishin-gateway-3 │
                      │  :9091   │ │  :9091   │ │  :9091   │
                      │  :9190   │ │  :9190   │ │  :9190   │
                      │  :7100 ◄─┼─► :7100 ◄─┼─► :7100   │
@@ -97,7 +97,7 @@ O **n-gate** é um gateway HTTP programável que atua como proxy reverso entre s
                      └───────────────────────────────────────┘
 ```
 
-![Topologia Cluster](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/cluster_topology.puml)
+![Topologia Cluster](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/ishin-gateway/main/docs/diagrams/cluster_topology.puml)
 
 Para detalhes, veja [docs/architecture.md](docs/architecture.md).
 
@@ -144,19 +144,19 @@ docker compose down
 
 | Serviço | Porta | Descrição |
 |---------|:-----:|-----------| 
-| `n-gate` | `9090` | Proxy principal (com auth OAuth ao upstream) |
-| `n-gate` | `9091` | Proxy benchmark (sem auth, upstream estático) |
-| `n-gate` | `9190` | Actuator (health, prometheus, admin API) |
+| `ishin-gateway` | `9090` | Proxy principal (com auth OAuth ao upstream) |
+| `ishin-gateway` | `9091` | Proxy benchmark (sem auth, upstream estático) |
+| `ishin-gateway` | `9190` | Actuator (health, prometheus, admin API) |
 | `keycloak` | `8081` | SSO / Identity Provider |
 | `zipkin` | `9411` | Distributed Tracing UI |
 | `static-backend` | `3080` | Nginx com JSON fixo (benchmark) |
 | `benchmark-ui` | `8000` | UI web para benchmarks |
 | **Cluster Mode** | | |
-| `nginx-cluster-lb` | `5080` | LB round-robin → 3 nós n-gate |
-| `ngate-node1` | `9191` | Nó 1 proxy (listener http-noauth) |
-| `ngate-node2` | `9192` | Nó 2 proxy |
-| `ngate-node3` | `9193` | Nó 3 proxy |
-| `ngate-node*` | `7100` | NGrid mesh (interno, inter-nó) |
+| `nginx-cluster-lb` | `5080` | LB round-robin → 3 nós ishin-gateway |
+| `ishin-node1` | `9191` | Nó 1 proxy (listener http-noauth) |
+| `ishin-node2` | `9192` | Nó 2 proxy |
+| `ishin-node3` | `9193` | Nó 3 proxy |
+| `ishin-node*` | `7100` | NGrid mesh (interno, inter-nó) |
 
 ### Teste rápido
 
@@ -177,8 +177,8 @@ curl -i http://localhost:9091/qualquer/path
 TOKEN=$(curl -s -X POST 'http://localhost:8081/realms/inventory-dev/protocol/openid-connect/token' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d 'grant_type=password' \
-  -d 'client_id=ngate-client' \
-  -d 'client_secret=ngate-secret' \
+  -d 'client_id=ishin-client' \
+  -d 'client_secret=ishin-secret' \
   -d 'username=inventory-svc' \
   -d 'password=inventory-svc-pass' | jq -r .access_token)
 
@@ -273,7 +273,7 @@ O script faz warmup, roda testes com concorrência 1/10/50, e gera relatório co
 ## Estrutura do Projeto
 
 ```
-n-gate/
+ishin-gateway/
 ├── config/
 │   ├── adapter.yaml           # Configuração principal (standalone)
 │   └── adapter-cluster.yaml   # Configuração cluster (3 nós)
@@ -294,7 +294,7 @@ n-gate/
 │   └── observability.md
 ├── scripts/
 │   └── benchmark.py           # Script de benchmark
-├── src/main/java/dev/nishisan/ngate/
+├── src/main/java/dev/nishisan/ishin/
 │   ├── auth/                  # JWT, OAuth, Token Decoders
 │   ├── cluster/               # ClusterService (NGrid lifecycle)
 │   ├── configuration/         # POJOs de configuração (adapter.yaml)
@@ -310,8 +310,8 @@ n-gate/
 ├── docker-compose.bench.yml   # Override benchmark
 ├── docker-compose.cluster.yml # Cluster: 3 nós + nginx LB
 ├── debian/                    # Packaging .deb
-│   ├── ngate-cli              # CLI tool (instalado em /usr/bin)
-│   ├── n-gate.service         # Systemd unit
+│   ├── ishin-cli              # CLI tool (instalado em /usr/bin)
+│   ├── ishin-gateway.service         # Systemd unit
 │   ├── postinst               # Script pós-instalação
 │   └── control                # Metadados do pacote
 └── pom.xml                    # Maven build

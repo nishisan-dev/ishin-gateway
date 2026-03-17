@@ -1,5 +1,5 @@
 @startuml
-title n-gate — Fluxo de Request (Sequência)
+title ishin-gateway — Fluxo de Request (Sequência)
 
 skinparam backgroundColor #FEFEFE
 skinparam sequenceArrowThickness 2

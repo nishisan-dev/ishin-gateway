@@ -4,7 +4,7 @@ O Upstream Pool permite definir múltiplos servidores backend para cada serviço
 
 ## Arquitetura
 
-![Upstream Pool](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/upstream_pool.puml)
+![Upstream Pool](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/ishin-gateway/main/docs/diagrams/upstream_pool.puml)
 
 ## Configuração
 
@@ -58,7 +58,7 @@ members:
 
 ### Health Check Ativo
 
-Quando habilitado (`healthCheck.enabled: true`), o n-gate faz probes periódicos em cada membro:
+Quando habilitado (`healthCheck.enabled: true`), o ishin-gateway faz probes periódicos em cada membro:
 
 - **Probe**: `GET <member-url><path>` (ex: `http://server1:8080/health`)
 - **Sucesso**: HTTP 2xx
@@ -102,7 +102,7 @@ backends:
 
 ## Comportamento em Runtime
 
-1. Request chega no n-gate
+1. Request chega no ishin-gateway
 2. `HttpProxyManager` resolve o backend via regras/default
 3. `UpstreamPoolManager.selectMember(backendName)` seleciona um membro saudável
 4. Se nenhum membro disponível → **503 Service Unavailable** com header `x-upstream-pool`

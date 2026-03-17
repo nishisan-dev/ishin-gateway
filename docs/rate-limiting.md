@@ -1,6 +1,6 @@
 # Rate Limiting
 
-O n-gate suporta rate limiting granular inspirado no `ngx_http_limit_req_module` do Nginx. A feature permite controlar a taxa de requests em 3 escopos com dois modos de ação.
+O ishin-gateway suporta rate limiting granular inspirado no `ngx_http_limit_req_module` do Nginx. A feature permite controlar a taxa de requests em 3 escopos com dois modos de ação.
 
 ## Modos de Operação
 
@@ -91,13 +91,13 @@ Se qualquer nível rejeitar, o request é bloqueado naquele ponto com HTTP 429.
 ## Métricas Prometheus
 
 ```
-ngate_ratelimit_total{scope="listener",zone="api-global",result="ALLOWED"} 150
-ngate_ratelimit_total{scope="listener",zone="api-global",result="REJECTED"} 5
-ngate_ratelimit_total{scope="backend",zone="api-strict",result="DELAYED"} 12
+ishin_ratelimit_total{scope="listener",zone="api-global",result="ALLOWED"} 150
+ishin_ratelimit_total{scope="listener",zone="api-global",result="REJECTED"} 5
+ishin_ratelimit_total{scope="backend",zone="api-strict",result="DELAYED"} 12
 ```
 
 Métricas nativas do Resilience4j RateLimiter também são expostas automaticamente via Micrometer.
 
 ## Diagrama de Fluxo
 
-![Rate Limiting Flow](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/feature/rate-limit/docs/diagrams/rate_limiting.puml)
+![Rate Limiting Flow](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/ishin-gateway/feature/rate-limit/docs/diagrams/rate_limiting.puml)

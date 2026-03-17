@@ -1,6 +1,6 @@
-# Regras Groovy — n-gate
+# Regras Groovy — ishin-gateway
 
-O n-gate utiliza o **GroovyScriptEngine** como motor de regras dinâmicas. Scripts `.groovy` no diretório `rules/` são executados a cada request, permitindo modificar roteamento, headers, payloads e gerar respostas programáticas.
+O ishin-gateway utiliza o **GroovyScriptEngine** como motor de regras dinâmicas. Scripts `.groovy` no diretório `rules/` são executados a cada request, permitindo modificar roteamento, headers, payloads e gerar respostas programáticas.
 
 ---
 
@@ -215,7 +215,7 @@ def path = context.path()
 
 if (path == "/health") {
     def synth = workload.createSynthResponse()
-    synth.setContent('{"status": "UP", "service": "n-gate"}')
+    synth.setContent('{"status": "UP", "service": "ishin-gateway"}')
     synth.setStatus(200)
     synth.addHeader("Content-Type", "application/json")
 }
@@ -224,7 +224,7 @@ if (path == "/health") {
 Resultado:
 ```bash
 curl http://localhost:9090/health
-# {"status": "UP", "service": "n-gate"}
+# {"status": "UP", "service": "ishin-gateway"}
 ```
 
 ---
@@ -263,7 +263,7 @@ Adiciona headers customizados na resposta que o cliente receberá, utilizando um
 
 def addResponseHeaders = { wl ->
     // Headers estáticos — sempre presentes no response
-    wl.clientResponse.addHeader("X-Powered-By", "n-gate")
+    wl.clientResponse.addHeader("X-Powered-By", "ishin-gateway")
     wl.clientResponse.addHeader("X-Request-Id", java.util.UUID.randomUUID().toString())
 
     // Propaga headers seletivos do upstream para o cliente
@@ -288,7 +288,7 @@ workload.addResponseProcessor('addResponseHeaders', addResponseHeaders)
 Resultado:
 ```bash
 curl -v http://localhost:9090/api/resource
-# < X-Powered-By: n-gate
+# < X-Powered-By: ishin-gateway
 # < X-Request-Id: 550e8400-e29b-41d4-a716-446655440000
 # < X-Content-Type-Options: nosniff
 # < X-Frame-Options: DENY
@@ -418,7 +418,7 @@ if (path.startsWith("/gateway/v1")) {
 
 // Adiciona parâmetros de query
 def existingQs = context.queryString() ?: ""
-upstreamRequest.setQueryString(existingQs + "&source=n-gate")
+upstreamRequest.setQueryString(existingQs + "&source=ishin-gateway")
 ```
 
 ---
@@ -523,7 +523,7 @@ Substitui o body antes de enviar ao backend:
 // Lê e modifica o body original do cliente
 def original = utils.json.parseText(new String(upstreamRequest.getBodyAsBytes()))
 original.enrichedAt = new Date().format("yyyy-MM-dd'T'HH:mm:ss")
-original.source = "n-gate"
+original.source = "ishin-gateway"
 
 // Substitui o body — encoding automático (charset do header ou UTF-8)
 upstreamRequest.setBody(utils.gson.toJson(original))
@@ -582,7 +582,7 @@ def transformBody = { wl ->
 
         // Enriquece com metadados do gateway
         json.gateway = [
-            processedBy: "n-gate",
+            processedBy: "ishin-gateway",
             listener: wl.context.getContextName(),
             timestamp: System.currentTimeMillis()
         ]

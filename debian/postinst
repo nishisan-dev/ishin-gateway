@@ -2,27 +2,27 @@
 set -e
 
 # Cria user de sistema se não existir
-if ! id -u n-gate >/dev/null 2>&1; then
-    useradd --system --no-create-home --shell /usr/sbin/nologin n-gate
+if ! id -u ishin-gateway >/dev/null 2>&1; then
+    useradd --system --no-create-home --shell /usr/sbin/nologin ishin-gateway
 fi
 
 # Cria diretórios de runtime
-mkdir -p /var/log/n-gate
-mkdir -p /var/lib/n-gate
-mkdir -p /etc/n-gate/ssl
-mkdir -p /etc/n-gate/rules
+mkdir -p /var/log/ishin-gateway
+mkdir -p /var/lib/ishin-gateway
+mkdir -p /etc/ishin-gateway/ssl
+mkdir -p /etc/ishin-gateway/rules
 
 # Ajusta permissões
-chown -R n-gate:n-gate /var/log/n-gate
-chown -R n-gate:n-gate /var/lib/n-gate
-chown -R n-gate:n-gate /etc/n-gate/ssl
-chown -R n-gate:n-gate /etc/n-gate/rules
+chown -R ishin-gateway:ishin-gateway /var/log/ishin-gateway
+chown -R ishin-gateway:ishin-gateway /var/lib/ishin-gateway
+chown -R ishin-gateway:ishin-gateway /etc/ishin-gateway/ssl
+chown -R ishin-gateway:ishin-gateway /etc/ishin-gateway/rules
 
 # Habilita o serviço (não inicia automaticamente)
 systemctl daemon-reload
-systemctl enable n-gate.service
+systemctl enable ishin-gateway.service
 
-echo "n-gate installed successfully."
-echo "  - Edit /etc/n-gate/adapter.yaml to configure"
-echo "  - Place rules in /etc/n-gate/rules/"
-echo "  - Start with: systemctl start n-gate"
+echo "ishin-gateway installed successfully."
+echo "  - Edit /etc/ishin-gateway/adapter.yaml to configure"
+echo "  - Place rules in /etc/ishin-gateway/rules/"
+echo "  - Start with: systemctl start ishin-gateway"

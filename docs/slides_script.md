@@ -1,4 +1,4 @@
-# n-gate — Prompt para Apresentação de Slides
+# ishin-gateway — Prompt para Apresentação de Slides
 
 > Prompt para geração de deck de slides (Google Slides, Keynote, PowerPoint ou ferramentas AI como Gamma, Beautiful.ai, Tome).
 
@@ -6,7 +6,7 @@
 
 ## Prompt
 
-Crie uma apresentação de slides profissional para o **n-gate** — um API Gateway & Reverse Proxy programável de alta performance construído em Java 21. A apresentação é direcionada a **engenheiros de software, arquitetos de soluções e tech leads** que avaliam soluções de API Gateway para ambientes de produção.
+Crie uma apresentação de slides profissional para o **ishin-gateway** — um API Gateway & Reverse Proxy programável de alta performance construído em Java 21. A apresentação é direcionada a **engenheiros de software, arquitetos de soluções e tech leads** que avaliam soluções de API Gateway para ambientes de produção.
 
 **Estilo visual:** Dark mode com fundo `#0d1117`. Tipografia moderna (Inter ou similar sans-serif). Cor primária `#58a6ff` (azul-elétrico), accent `#f78166` (laranja para destaques), success `#3fb950` (verde para status/health). Minimalista e técnico — nada de clip art ou imagens genéricas. Use diagramas técnicos, blocos de código estilizados e ícones flat.
 
@@ -18,7 +18,7 @@ Crie uma apresentação de slides profissional para o **n-gate** — um API Gate
 
 ### Slide 1 — Capa
 
-- **Título:** n-gate
+- **Título:** ishin-gateway
 - **Subtítulo:** Programmable API Gateway & Reverse Proxy
 - **Tagline:** Alta performance · Observável por padrão · Escalável horizontalmente
 - **Badges visuais:** Java 21 · Virtual Threads · Groovy · Open Source
@@ -45,7 +45,7 @@ Apresentar em formato de lista com ícones:
 
 ### Slide 3 — A Solução
 
-**Título:** n-gate resolve cada um desses problemas
+**Título:** ishin-gateway resolve cada um desses problemas
 
 Tabela visual lado a lado (Problema → Solução):
 
@@ -54,7 +54,7 @@ Tabela visual lado a lado (Problema → Solução):
 - Spikes de tráfego → **Rate limiting granular (listener / rota / backend)**
 - Single point of failure → **Cluster mode NGrid com leader election**
 - Falta de visibilidade → **13 spans semânticos por request + Prometheus**
-- Operação complexa → **CLI dedicado (`ngate-cli`) + Admin API REST**
+- Operação complexa → **CLI dedicado (`ishin-cli`) + Admin API REST**
 
 ---
 
@@ -65,7 +65,7 @@ Tabela visual lado a lado (Problema → Solução):
 Diagrama visual mostrando o fluxo:
 
 ```
-Clients → [n-gate] → Backends
+Clients → [ishin-gateway] → Backends
               │
    ┌──────────┼──────────┐
    │          │          │
@@ -174,7 +174,7 @@ else if (path == "/health") {
 **Diagrama de fluxo bidirecional:**
 
 ```
-Cliente ──[JWT]──► n-gate ──[OAuth2 Bearer]──► Backend
+Cliente ──[JWT]──► ishin-gateway ──[OAuth2 Bearer]──► Backend
           validação              injeção
           via JWKS             automática
 ```
@@ -193,7 +193,7 @@ Cliente ──[JWT]──► n-gate ──[OAuth2 Bearer]──► Backend
 
 ```
 ┌──────────┐   ┌──────────┐   ┌──────────┐
-│ n-gate-1 │◄─►│ n-gate-2 │◄─►│ n-gate-3 │
+│ ishin-gateway-1 │◄─►│ ishin-gateway-2 │◄─►│ ishin-gateway-3 │
 │  :9091   │   │  :9091   │   │  :9091   │
 │  :7100   │   │  :7100   │   │  :7100   │
 └──────────┘   └──────────┘   └──────────┘
@@ -221,11 +221,11 @@ Cliente ──[JWT]──► n-gate ──[OAuth2 Bearer]──► Backend
 | `GET /admin/rules/list` | Lista scripts do bundle ativo |
 | `GET /admin/rules/version` | Versão do bundle ativo |
 
-**CLI — `ngate-cli` (instalado via .deb):**
+**CLI — `ishin-cli` (instalado via .deb):**
 ```bash
-ngate-cli deploy /etc/n-gate/rules
-ngate-cli list
-ngate-cli version
+ishin-cli deploy /etc/ishin-gateway/rules
+ishin-cli list
+ishin-cli version
 ```
 
 **Destaque:** Scripts materializados em disco (não em temp dirs) — persistência e auditabilidade.
@@ -252,11 +252,11 @@ rootSpan (SERVER)
 ```
 
 **Métricas Prometheus:**
-- `ngate.requests.total` — por listener/método/status
-- `ngate.upstream.duration` — latência upstream
-- `ngate.ratelimit.total` — eventos de rate limiting
+- `ishin.requests.total` — por listener/método/status
+- `ishin.upstream.duration` — latência upstream
+- `ishin.ratelimit.total` — eventos de rate limiting
 - `resilience4j.circuitbreaker.*` — estado do CB
-- `ngate.cluster.active.members` — saúde do cluster
+- `ishin.cluster.active.members` — saúde do cluster
 
 ---
 
@@ -315,13 +315,13 @@ docker compose -f docker-compose.yml \
 curl -i http://localhost:9091/qualquer/path
 ```
 
-Link: `github.com/nishisan-dev/n-gate`
+Link: `github.com/nishisan-dev/ishin-gateway`
 
 ---
 
 ### Slide 15 — Encerramento
 
-**Título:** n-gate
+**Título:** ishin-gateway
 
 **Três palavras centrais (grandes):**
 > **Programmable. Observable. Resilient.**
@@ -330,7 +330,7 @@ Link: `github.com/nishisan-dev/n-gate`
 > Java 21 · Open Source · Production Ready
 
 **Call to action:**
-> ⭐ github.com/nishisan-dev/n-gate  
+> ⭐ github.com/nishisan-dev/ishin-gateway  
 > 📖 Documentação completa em `docs/`
 
 ---

@@ -2,5 +2,5 @@
 set -e
 
 # Para e desabilita o serviço antes de remover
-systemctl stop n-gate.service || true
-systemctl disable n-gate.service || true
+systemctl stop ishin-gateway.service || true
+systemctl disable ishin-gateway.service || true

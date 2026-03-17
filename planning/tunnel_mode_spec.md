@@ -1,8 +1,8 @@
-# n-gate Tunnel Mode — Especificação Técnica
+# ishin-gateway Tunnel Mode — Especificação Técnica
 
 ## 1. Visão Geral
 
-O **Tunnel Mode** é um modo de operação alternativo do n-gate que atua como um **load balancer TCP (L4)** na frente de múltiplas instâncias do n-gate em modo proxy. O objetivo é oferecer uma solução **auto-contida** de alta disponibilidade e balanceamento de carga, eliminando a necessidade de componentes externos como Nginx, HAProxy ou cloud ingress controllers.
+O **Tunnel Mode** é um modo de operação alternativo do ishin-gateway que atua como um **load balancer TCP (L4)** na frente de múltiplas instâncias do ishin-gateway em modo proxy. O objetivo é oferecer uma solução **auto-contida** de alta disponibilidade e balanceamento de carga, eliminando a necessidade de componentes externos como Nginx, HAProxy ou cloud ingress controllers.
 
 ### Princípios de Design
 
@@ -14,11 +14,11 @@ O **Tunnel Mode** é um modo de operação alternativo do n-gate que atua como u
 | **Virtual Port Groups** | Backends declaram a qual porta virtual pertencem, independente da porta real em que escutam. |
 | **Graceful lifecycle** | Backends notificam entrada e saída do pool. O túnel reage, nunca inicia. |
 
-### Modos de operação do n-gate
+### Modos de operação do ishin-gateway
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                   n-gate                         │
+│                   ishin-gateway                         │
 │                                                  │
 │  ┌──────────────┐       ┌─────────────────────┐  │
 │  │  mode: proxy  │       │  mode: tunnel       │  │
@@ -43,21 +43,21 @@ O **Tunnel Mode** é um modo de operação alternativo do n-gate que atua como u
 ```
                               ┌─────────────────────┐
                               │   VM-2               │
-                              │   n-gate (proxy)     │
+                              │   ishin-gateway (proxy)     │
                               │   listen: 8080       │
                          ┌───▶│   virtualPort: 8080  │
                          │    └─────────────────────┘
 ┌──────────────────┐     │
 │   VM-1            │     │    ┌─────────────────────┐
-│   n-gate (tunnel) │     │    │   VM-3               │
-│                   │─────┼───▶│   n-gate (proxy)     │
+│   ishin-gateway (tunnel) │     │    │   VM-3               │
+│                   │─────┼───▶│   ishin-gateway (proxy)     │
 │   :8080 (virtual) │     │    │   listen: 8080       │
 │                   │     │    │   virtualPort: 8080  │
 └──────────────────┘     │    └─────────────────────┘
        ▲                  │
        │                  │    ┌─────────────────────┐
     Clients               │    │   VM-4               │
-                          └───▶│   n-gate (proxy)     │
+                          └───▶│   ishin-gateway (proxy)     │
                                │   listen: 8080       │
                                │   virtualPort: 8080  │
                                └─────────────────────┘
@@ -70,7 +70,7 @@ O **Tunnel Mode** é um modo de operação alternativo do n-gate que atua como u
 │                    VM-1                       │
 │                                              │
 │  ┌──────────────────┐                        │
-│  │ n-gate (tunnel)  │                        │
+│  │ ishin-gateway (tunnel)  │                        │
 │  │ :8080 (virtual)  │───┐                    │
 │  └──────────────────┘   │                    │
 │                          │  ┌──────────────┐  │
@@ -98,7 +98,7 @@ O **Tunnel Mode** é um modo de operação alternativo do n-gate que atua como u
                          │    │  :8444 → vPort 8443   │
 ┌──────────────────┐     │    └───────────────────────┘
 │  VM-1             │     │
-│  n-gate (tunnel)  │     │    ┌───────────────────────┐
+│  ishin-gateway (tunnel)  │     │    ┌───────────────────────┐
 │                   │─────┤    │  VM-2                  │
 │  :8080 (virtual)  │     │    │  proxy-2               │
 │  :8443 (virtual)  │     ├───▶│  :8082 → vPort 8080   │
@@ -637,63 +637,63 @@ O Tunnel Mode habilita o cenário de **reload de configuração sem downtime** d
 
 ## 9. Observabilidade TCP (Prometheus)
 
-Embora o túnel não entenda HTTP, ele tem visibilidade completa sobre as **conexões TCP** e o **estado do pool**. Todas as métricas são expostas via Prometheus no endpoint padrão do n-gate (`/metrics`).
+Embora o túnel não entenda HTTP, ele tem visibilidade completa sobre as **conexões TCP** e o **estado do pool**. Todas as métricas são expostas via Prometheus no endpoint padrão do ishin-gateway (`/metrics`).
 
 ### 9.1. Métricas de Conexão
 
 | Métrica | Tipo | Labels | Descrição |
 |---------|------|--------|-----------|
-| `ngate_tunnel_connections_total` | Counter | `virtual_port`, `backend` | Total de conexões TCP aceitas |
-| `ngate_tunnel_connections_active` | Gauge | `virtual_port`, `backend` | Conexões TCP ativas no momento |
-| `ngate_tunnel_session_duration_seconds` | Histogram | `virtual_port`, `backend` | Duração da sessão TCP (accept → close) |
-| `ngate_tunnel_connect_duration_seconds` | Histogram | `virtual_port`, `backend` | Latência do handshake TCP com o backend |
+| `ishin_tunnel_connections_total` | Counter | `virtual_port`, `backend` | Total de conexões TCP aceitas |
+| `ishin_tunnel_connections_active` | Gauge | `virtual_port`, `backend` | Conexões TCP ativas no momento |
+| `ishin_tunnel_session_duration_seconds` | Histogram | `virtual_port`, `backend` | Duração da sessão TCP (accept → close) |
+| `ishin_tunnel_connect_duration_seconds` | Histogram | `virtual_port`, `backend` | Latência do handshake TCP com o backend |
 
 ### 9.2. Métricas de Throughput
 
 | Métrica | Tipo | Labels | Descrição |
 |---------|------|--------|-----------|
-| `ngate_tunnel_bytes_sent_total` | Counter | `virtual_port`, `backend` | Bytes transferidos client → backend |
-| `ngate_tunnel_bytes_received_total` | Counter | `virtual_port`, `backend` | Bytes transferidos backend → client |
+| `ishin_tunnel_bytes_sent_total` | Counter | `virtual_port`, `backend` | Bytes transferidos client → backend |
+| `ishin_tunnel_bytes_received_total` | Counter | `virtual_port`, `backend` | Bytes transferidos backend → client |
 
 ### 9.3. Métricas de Falha
 
 | Métrica | Tipo | Labels | Descrição |
 |---------|------|--------|-----------|
-| `ngate_tunnel_connect_errors_total` | Counter | `virtual_port`, `backend`, `error_type` | Falhas de conexão com backend. `error_type`: `refused`, `timeout`, `reset`, `no_route` |
-| `ngate_tunnel_pool_removals_total` | Counter | `virtual_port`, `backend`, `reason` | Remoções do pool. `reason`: `io_exception`, `keepalive_timeout`, `graceful` |
+| `ishin_tunnel_connect_errors_total` | Counter | `virtual_port`, `backend`, `error_type` | Falhas de conexão com backend. `error_type`: `refused`, `timeout`, `reset`, `no_route` |
+| `ishin_tunnel_pool_removals_total` | Counter | `virtual_port`, `backend`, `reason` | Remoções do pool. `reason`: `io_exception`, `keepalive_timeout`, `graceful` |
 
 ### 9.4. Métricas de Saúde do Pool
 
 | Métrica | Tipo | Labels | Descrição |
 |---------|------|--------|-----------|
-| `ngate_tunnel_pool_members` | Gauge | `virtual_port`, `status` | Membros por virtualPort e status (`active`, `standby`, `draining`) |
-| `ngate_tunnel_keepalive_age_seconds` | Gauge | `virtual_port`, `backend` | Segundos desde o último keepalive de cada membro |
-| `ngate_tunnel_listener_ports_active` | Gauge | — | Total de listeners virtuais abertos |
-| `ngate_tunnel_standby_promotions_total` | Counter | `virtual_port` | Promoções automáticas de STANDBY → ACTIVE |
+| `ishin_tunnel_pool_members` | Gauge | `virtual_port`, `status` | Membros por virtualPort e status (`active`, `standby`, `draining`) |
+| `ishin_tunnel_keepalive_age_seconds` | Gauge | `virtual_port`, `backend` | Segundos desde o último keepalive de cada membro |
+| `ishin_tunnel_listener_ports_active` | Gauge | — | Total de listeners virtuais abertos |
+| `ishin_tunnel_standby_promotions_total` | Counter | `virtual_port` | Promoções automáticas de STANDBY → ACTIVE |
 
 ### 9.5. Exemplos de Queries PromQL
 
 ```promql
 # Taxa de conexões por segundo por backend (últimos 5 min)
-rate(ngate_tunnel_connections_total[5m])
+rate(ishin_tunnel_connections_total[5m])
 
 # Distribuição de carga: conexões ativas por backend
-ngate_tunnel_connections_active
+ishin_tunnel_connections_active
 
 # Throughput total in+out (bytes/s)
-rate(ngate_tunnel_bytes_sent_total[5m]) + rate(ngate_tunnel_bytes_received_total[5m])
+rate(ishin_tunnel_bytes_sent_total[5m]) + rate(ishin_tunnel_bytes_received_total[5m])
 
 # Taxa de erros de conexão por tipo
-rate(ngate_tunnel_connect_errors_total[5m])
+rate(ishin_tunnel_connect_errors_total[5m])
 
 # Alerting: membro com keepalive próximo do threshold
-ngate_tunnel_keepalive_age_seconds > 6  # alerta quando > 2x keepaliveInterval
+ishin_tunnel_keepalive_age_seconds > 6  # alerta quando > 2x keepaliveInterval
 
 # P95 de duração de sessão TCP
-histogram_quantile(0.95, rate(ngate_tunnel_session_duration_seconds_bucket[5m]))
+histogram_quantile(0.95, rate(ishin_tunnel_session_duration_seconds_bucket[5m]))
 
 # Remoções do pool por motivo (últimas 24h)
-increase(ngate_tunnel_pool_removals_total[24h])
+increase(ishin_tunnel_pool_removals_total[24h])
 ```
 
 ---

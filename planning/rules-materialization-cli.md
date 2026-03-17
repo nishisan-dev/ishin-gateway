@@ -1,12 +1,12 @@
 # Materialização de Rules no rulesBasePath + CLI Script
 
-Quando um bundle de rules é deployado via Admin API (ou replicado via NGrid), os scripts são materializados num diretório temporário (`/tmp/ngate-rules-vN-xxx`) ao invés do `rulesBasePath` configurado (ex: `/etc/n-gate/rules`). Isso causa confusão operacional pois um `ls /etc/n-gate/rules` não mostra as regras ativas. Além disso, o systemd unit impede escrita em `/etc/n-gate` e não existe um CLI amigável para deploy.
+Quando um bundle de rules é deployado via Admin API (ou replicado via NGrid), os scripts são materializados num diretório temporário (`/tmp/ishin-rules-vN-xxx`) ao invés do `rulesBasePath` configurado (ex: `/etc/ishin-gateway/rules`). Isso causa confusão operacional pois um `ls /etc/ishin-gateway/rules` não mostra as regras ativas. Além disso, o systemd unit impede escrita em `/etc/ishin-gateway` e não existe um CLI amigável para deploy.
 
 ## Proposed Changes
 
 ### Componente 1: RulesBundleManager — Materializar no rulesBasePath
 
-#### [MODIFY] [RulesBundleManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/rules/RulesBundleManager.java)
+#### [MODIFY] [RulesBundleManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/rules/RulesBundleManager.java)
 
 Alterar `applyBundleLocally()` para:
 1. Resolver o `rulesBasePath` do primeiro endpoint configurado via `ConfigurationManager`.
@@ -20,7 +20,7 @@ Isso garante que o filesystem reflete o estado runtime e sobrevive restarts sem 
 
 ### Componente 2: AdminController — Endpoint de listagem
 
-#### [MODIFY] [AdminController.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/admin/AdminController.java)
+#### [MODIFY] [AdminController.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/admin/AdminController.java)
 
 Adicionar endpoint `GET /admin/rules/list` que retorna:
 ```json
@@ -40,44 +40,44 @@ Protegido pela mesma autenticação `X-API-Key` existente.
 
 ### Componente 3: Debian Packaging — Permissões e CLI
 
-#### [MODIFY] [n-gate.service](file:///home/lucas/Projects/n-gate/debian/n-gate.service)
+#### [MODIFY] [ishin-gateway.service](file:///home/lucas/Projects/ishin-gateway/debian/ishin-gateway.service)
 
-Alterar linha `ReadOnlyPaths=/etc/n-gate /opt/n-gate` para separar:
-- `ReadOnlyPaths=/opt/n-gate` (somente o JAR)
-- `ReadWritePaths=/etc/n-gate/rules` (permitir escrita ao materializar bundles)
-- `/etc/n-gate` em si continua restrito (adapter.yaml, ssl, log4j2.xml protegidos)
+Alterar linha `ReadOnlyPaths=/etc/ishin-gateway /opt/ishin-gateway` para separar:
+- `ReadOnlyPaths=/opt/ishin-gateway` (somente o JAR)
+- `ReadWritePaths=/etc/ishin-gateway/rules` (permitir escrita ao materializar bundles)
+- `/etc/ishin-gateway` em si continua restrito (adapter.yaml, ssl, log4j2.xml protegidos)
 
-#### [MODIFY] [postinst](file:///home/lucas/Projects/n-gate/debian/postinst)
+#### [MODIFY] [postinst](file:///home/lucas/Projects/ishin-gateway/debian/postinst)
 
-Adicionar criação e permissões do diretório `/etc/n-gate/rules`:
+Adicionar criação e permissões do diretório `/etc/ishin-gateway/rules`:
 ```bash
-mkdir -p /etc/n-gate/rules
-chown -R n-gate:n-gate /etc/n-gate/rules
+mkdir -p /etc/ishin-gateway/rules
+chown -R ishin-gateway:ishin-gateway /etc/ishin-gateway/rules
 ```
 
-#### [NEW] [ngate-cli](file:///home/lucas/Projects/n-gate/debian/ngate-cli)
+#### [NEW] [ishin-cli](file:///home/lucas/Projects/ishin-gateway/debian/ishin-cli)
 
 Script Bash CLI com subcomandos:
-- `ngate-cli deploy <diretório-de-rules>` — empacota os `.groovy` e faz POST multipart para `/admin/rules/deploy`
-- `ngate-cli list` — faz GET em `/admin/rules/list` e exibe a lista de scripts
-- `ngate-cli version` — faz GET em `/admin/rules/version` e exibe a versão ativa
+- `ishin-cli deploy <diretório-de-rules>` — empacota os `.groovy` e faz POST multipart para `/admin/rules/deploy`
+- `ishin-cli list` — faz GET em `/admin/rules/list` e exibe a lista de scripts
+- `ishin-cli version` — faz GET em `/admin/rules/version` e exibe a versão ativa
 
-Configuração via variáveis de ambiente ou arquivo `/etc/n-gate/cli.conf`:
-- `NGATE_ADMIN_URL` (default: `http://localhost:9190`)
-- `NGATE_API_KEY`
+Configuração via variáveis de ambiente ou arquivo `/etc/ishin-gateway/cli.conf`:
+- `ISHIN_ADMIN_URL` (default: `http://localhost:9190`)
+- `ISHIN_API_KEY`
 
 Dependência: `curl` e `jq` (já comuns em servidores Linux).
 
-#### [MODIFY] [release.yml](file:///home/lucas/Projects/n-gate/.github/workflows/release.yml)
+#### [MODIFY] [release.yml](file:///home/lucas/Projects/ishin-gateway/.github/workflows/release.yml)
 
 Adicionar no step "Build .deb package":
 ```bash
 mkdir -p "${PKG}/usr/bin"
-cp debian/ngate-cli "${PKG}/usr/bin/ngate-cli"
-chmod 755 "${PKG}/usr/bin/ngate-cli"
+cp debian/ishin-cli "${PKG}/usr/bin/ishin-cli"
+chmod 755 "${PKG}/usr/bin/ishin-cli"
 ```
 
-#### [MODIFY] [control](file:///home/lucas/Projects/n-gate/debian/control)
+#### [MODIFY] [control](file:///home/lucas/Projects/ishin-gateway/debian/control)
 
 Adicionar `curl, jq` ao campo `Depends` para garantir que o CLI funcione.
 
@@ -89,27 +89,27 @@ Adicionar `curl, jq` ao campo `Depends` para garantir que o CLI funcione.
 
 1. **Build Maven:**
    ```bash
-   cd /home/lucas/Projects/n-gate && mvn clean compile -DskipTests
+   cd /home/lucas/Projects/ishin-gateway && mvn clean compile -DskipTests
    ```
 
 2. **Teste de integração existente** (`NGridClusterRulesDeployIntegrationTest`):
    - Valida deploy standalone (T8), replicação cluster (T9), auth (T10), e payload vazio (T11).
    - O teste já faz deploy e verifica versão nos dois nós. Após nossas mudanças, o comportamento externo não muda — apenas o local de materialização.
-   - Comando: `cd /home/lucas/Projects/n-gate && mvn test -pl . -Dtest=NGridClusterRulesDeployIntegrationTest` (requer Docker rodando para Testcontainers)
+   - Comando: `cd /home/lucas/Projects/ishin-gateway && mvn test -pl . -Dtest=NGridClusterRulesDeployIntegrationTest` (requer Docker rodando para Testcontainers)
 
 > [!IMPORTANT]
 > O teste de integração com Testcontainers requer Docker e demora ~2-3 minutos. Para a etapa de verificação, rodaremos inicialmente apenas o `mvn clean compile` para garantir que não há erros de compilação. O teste de integração completo ficará a critério do usuário, pois depende de Docker + tempo.
 
 ### Manual Verification
 
-O script `ngate-cli` poderá ser testado manualmente contra uma instância local:
+O script `ishin-cli` poderá ser testado manualmente contra uma instância local:
 ```bash
 # Testar help
-./debian/ngate-cli --help
+./debian/ishin-cli --help
 
 # Testar listagem (requer instância rodando)
-NGATE_API_KEY=test-key NGATE_ADMIN_URL=http://localhost:9190 ./debian/ngate-cli list
+ISHIN_API_KEY=test-key ISHIN_ADMIN_URL=http://localhost:9190 ./debian/ishin-cli list
 
 # Testar deploy
-NGATE_API_KEY=test-key NGATE_ADMIN_URL=http://localhost:9190 ./debian/ngate-cli deploy rules/
+ISHIN_API_KEY=test-key ISHIN_ADMIN_URL=http://localhost:9190 ./debian/ishin-cli deploy rules/
 ```

@@ -8,12 +8,12 @@
   "resetPasswordAllowed": true,
   "clients": [
     {
-      "clientId": "ngate-client",
-      "name": "ngate-client",
+      "clientId": "ishin-client",
+      "name": "ishin-client",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "ngate-secret",
+      "secret": "ishin-secret",
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,

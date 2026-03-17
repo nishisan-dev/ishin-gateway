@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 ###############################################################################
-# deploy_adhoc.sh — Build & deploy n-gate JAR para VMs Vagrant (ad-hoc)
+# deploy_adhoc.sh — Build & deploy ishin-gateway JAR para VMs Vagrant (ad-hoc)
 #
 # Uso:
-#   ./scripts/deploy_adhoc.sh              # build + deploy em ngate-1 e ngate-2
+#   ./scripts/deploy_adhoc.sh              # build + deploy em ishin-1 e ishin-2
 #   ./scripts/deploy_adhoc.sh --skip-build  # pula o build, usa o último JAR
-#   ./scripts/deploy_adhoc.sh ngate-1       # deploy apenas em ngate-1
-#   ./scripts/deploy_adhoc.sh --skip-build ngate-2  # sem build, apenas ngate-2
+#   ./scripts/deploy_adhoc.sh ishin-1       # deploy apenas em ishin-1
+#   ./scripts/deploy_adhoc.sh --skip-build ishin-2  # sem build, apenas ishin-2
 ###############################################################################
 set -euo pipefail
 
 # ─── Configuração ────────────────────────────────────────────────────────────
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VAGRANT_DIR="${PROJECT_ROOT}/n-gate-test-case"
-JAR_SOURCE="${PROJECT_ROOT}/target/n-gate-1.0-SNAPSHOT.jar"
-REMOTE_JAR="/opt/n-gate/n-gate.jar"
-SERVICE_NAME="n-gate"
-ALL_VMS=("ngate-1" "ngate-2")
+VAGRANT_DIR="${PROJECT_ROOT}/ishin-gateway-test-case"
+JAR_SOURCE="${PROJECT_ROOT}/target/ishin-gateway-1.0-SNAPSHOT.jar"
+REMOTE_JAR="/opt/ishin-gateway/ishin-gateway.jar"
+SERVICE_NAME="ishin-gateway"
+ALL_VMS=("ishin-1" "ishin-2")
 
 # ─── Cores ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -37,7 +37,7 @@ TARGET_VMS=()
 for arg in "$@"; do
   case "$arg" in
     --skip-build) SKIP_BUILD=true ;;
-    ngate-*)      TARGET_VMS+=("$arg") ;;
+    ishin-*)      TARGET_VMS+=("$arg") ;;
     *)            log_error "Argumento desconhecido: $arg"; exit 1 ;;
   esac
 done
@@ -50,18 +50,18 @@ fi
 # ─── Valida diretório do Vagrant ─────────────────────────────────────────────
 if [[ ! -f "${VAGRANT_DIR}/Vagrantfile" ]]; then
   log_error "Vagrantfile não encontrado em ${VAGRANT_DIR}"
-  log_error "Certifique-se de que o submodule n-gate-test-case está inicializado."
+  log_error "Certifique-se de que o submodule ishin-gateway-test-case está inicializado."
   exit 1
 fi
 
-# ─── Step 1: Build do Frontend (n-gate-ui) ──────────────────────────────────
+# ─── Step 1: Build do Frontend (ishin-gateway-ui) ──────────────────────────────────
 if [[ "$SKIP_BUILD" == true ]]; then
   log_warn "Build ignorado (--skip-build)"
 else
-  UI_DIR="${PROJECT_ROOT}/n-gate-ui"
+  UI_DIR="${PROJECT_ROOT}/ishin-gateway-ui"
 
   if [[ -d "$UI_DIR" ]]; then
-    log_info "Buildando o frontend (n-gate-ui)..."
+    log_info "Buildando o frontend (ishin-gateway-ui)..."
     cd "$UI_DIR"
 
     if [[ ! -d "node_modules" ]]; then
@@ -72,7 +72,7 @@ else
     npm run build
     log_ok "Frontend buildado → src/main/resources/static/dashboard"
   else
-    log_warn "Diretório n-gate-ui não encontrado. Pulando build do frontend."
+    log_warn "Diretório ishin-gateway-ui não encontrado. Pulando build do frontend."
   fi
 
   # ─── Step 2: Build do JAR ─────────────────────────────────────────────────
@@ -106,13 +106,13 @@ deploy_to_vm() {
 
   if [[ "$vm_status" != "running" ]]; then
     log_error "VM ${vm_name} não está running (status: ${vm_status})"
-    log_error "Execute 'cd n-gate-test-case && vagrant up ${vm_name}' primeiro."
+    log_error "Execute 'cd ishin-gateway-test-case && vagrant up ${vm_name}' primeiro."
     return 1
   fi
 
   # Upload do JAR via vagrant upload
   log_info "[${vm_name}] Fazendo upload do JAR..."
-  (cd "$VAGRANT_DIR" && vagrant upload "$JAR_SOURCE" /tmp/n-gate-deploy.jar "$vm_name")
+  (cd "$VAGRANT_DIR" && vagrant upload "$JAR_SOURCE" /tmp/ishin-gateway-deploy.jar "$vm_name")
   log_ok "[${vm_name}] Upload concluído."
 
   # Parar serviço, copiar JAR, reiniciar serviço
@@ -122,7 +122,7 @@ deploy_to_vm() {
 
   log_info "[${vm_name}] Copiando JAR para ${REMOTE_JAR}..."
   (cd "$VAGRANT_DIR" && vagrant ssh "$vm_name" -c \
-    "sudo cp /tmp/n-gate-deploy.jar ${REMOTE_JAR} && sudo chown n-gate:n-gate ${REMOTE_JAR} && rm -f /tmp/n-gate-deploy.jar")
+    "sudo cp /tmp/ishin-gateway-deploy.jar ${REMOTE_JAR} && sudo chown ishin-gateway:ishin-gateway ${REMOTE_JAR} && rm -f /tmp/ishin-gateway-deploy.jar")
 
   log_info "[${vm_name}] Reiniciando serviço ${SERVICE_NAME}..."
   (cd "$VAGRANT_DIR" && vagrant ssh "$vm_name" -c \

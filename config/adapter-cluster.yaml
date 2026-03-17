@@ -40,15 +40,15 @@ endpoints:
     dispatcherMaxRequestsPerHost: 256
 
 # --- Cluster Mode (NGrid) ---
-# nodeId é resolvido automaticamente via env NGATE_CLUSTER_NODE_ID → hostname → UUID
+# nodeId é resolvido automaticamente via env ISHIN_CLUSTER_NODE_ID → hostname → UUID
 cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-cluster"
+  clusterName: "ishin-cluster"
   seeds:
-    - "ngate-node1:7100"
-    - "ngate-node2:7100"
-    - "ngate-node3:7100"
+    - "ishin-node1:7100"
+    - "ishin-node2:7100"
+    - "ishin-node3:7100"
   replicationFactor: 2
   dataDirectory: "/tmp/ngrid-data"

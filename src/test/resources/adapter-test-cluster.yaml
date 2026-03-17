@@ -45,9 +45,9 @@ cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-test-cluster"
+  clusterName: "ishin-test-cluster"
   seeds:
-    - "ngate-node1:7100"
-    - "ngate-node2:7100"
+    - "ishin-node1:7100"
+    - "ishin-node2:7100"
   replicationFactor: 2
   dataDirectory: "/tmp/ngrid-test-data"

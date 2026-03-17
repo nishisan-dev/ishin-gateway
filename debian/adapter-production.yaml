@@ -1,11 +1,11 @@
 ---
-# n-gate Production Configuration
-# This file is installed to /etc/n-gate/adapter.yaml by the .deb package.
+# ishin-gateway Production Configuration
+# This file is installed to /etc/ishin-gateway/adapter.yaml by the .deb package.
 # Customize it for your environment.
 
 endpoints:
   default:
-    rulesBasePath: "/etc/n-gate/rules"
+    rulesBasePath: "/etc/ishin-gateway/rules"
 
     listeners:
       http:
@@ -57,6 +57,6 @@ dashboard:
     - "192.168.0.0/16"
   storage:
     type: "h2"
-    path: "/var/lib/n-gate/dashboard"
+    path: "/var/lib/ishin-gateway/dashboard"
     retentionHours: 168
     scrapeIntervalSeconds: 60

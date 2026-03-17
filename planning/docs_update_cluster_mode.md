@@ -2,7 +2,7 @@
 
 ## Contexto
 
-O n-gate passou por 5 sessões de implementação de horizontal scaling que adicionaram:
+O ishin-gateway passou por 5 sessões de implementação de horizontal scaling que adicionaram:
 
 1. **Health Check, Graceful Shutdown e Instance ID** (Sessão 1)
 2. **NGrid Cluster Mode** — mesh TCP, leader election, DistributedMap (Sessão 2)
@@ -18,7 +18,7 @@ Nenhum desses itens está refletido na documentação existente (`README.md`, `d
 
 ### README.md
 
-#### [MODIFY] [README.md](file:///home/lucas/Projects/n-gate/README.md)
+#### [MODIFY] [README.md](file:///home/lucas/Projects/ishin-gateway/README.md)
 
 1. **Tabela de Features** — adicionar linhas:
    - **Cluster Mode (NGrid)** — Coordenação de múltiplas instâncias via mesh TCP com leader election e DistributedMap
@@ -57,7 +57,7 @@ Nenhum desses itens está refletido na documentação existente (`README.md`, `d
 
 ### docs/architecture.md
 
-#### [MODIFY] [architecture.md](file:///home/lucas/Projects/n-gate/docs/architecture.md)
+#### [MODIFY] [architecture.md](file:///home/lucas/Projects/ishin-gateway/docs/architecture.md)
 
 1. **Visão Geral** — mencionar cluster mode como capacidade
 2. **Nova seção: Cluster Mode (NGrid)** — após "Modelo de Threading":
@@ -68,14 +68,14 @@ Nenhum desses itens está refletido na documentação existente (`README.md`, `d
    - Circuit Breaker (BackendCircuitBreakerManager)
    - Métricas Prometheus (ProxyMetrics)
 3. **Tabela de Pacotes** — adicionar:
-   - `dev.nishisan.ngate.cluster` — Cluster mode: ClusterService, NGrid lifecycle
-   - `dev.nishisan.ngate.http.circuit` — Circuit breaker: BackendCircuitBreakerManager
+   - `dev.nishisan.ishin.cluster` — Cluster mode: ClusterService, NGrid lifecycle
+   - `dev.nishisan.ishin.http.circuit` — Circuit breaker: BackendCircuitBreakerManager
 
 ---
 
 ### docs/configuration.md
 
-#### [MODIFY] [configuration.md](file:///home/lucas/Projects/n-gate/docs/configuration.md)
+#### [MODIFY] [configuration.md](file:///home/lucas/Projects/ishin-gateway/docs/configuration.md)
 
 1. **Estrutura Geral** — adicionar blocos `cluster:`, `admin:`, `circuitBreaker:` ao YAML da visão geral
 2. **Nova seção: Cluster Mode** — referência completa do bloco `cluster:`:
@@ -88,8 +88,8 @@ Nenhum desses itens está refletido na documentação existente (`README.md`, `d
    - `failureRateThreshold`, `waitDurationInOpenState`, `slidingWindowSize`, etc.
    - Exemplo YAML
 5. **Variáveis de Ambiente** — adicionar:
-   - `NGATE_CLUSTER_NODE_ID`
-   - `NGATE_CLUSTER_PORT`
+   - `ISHIN_CLUSTER_NODE_ID`
+   - `ISHIN_CLUSTER_PORT`
    - `MANAGEMENT_PORT` / `SERVER_PORT`
 6. **Exemplos** — adicionar exemplo "Cluster Mode — 3 nós com token sharing"
 
@@ -97,7 +97,7 @@ Nenhum desses itens está refletido na documentação existente (`README.md`, `d
 
 ### docs/use_cases.md
 
-#### [MODIFY] [use_cases.md](file:///home/lucas/Projects/n-gate/docs/use_cases.md)
+#### [MODIFY] [use_cases.md](file:///home/lucas/Projects/ishin-gateway/docs/use_cases.md)
 
 1. **Caso #8: Cluster com Token Sharing** — cenário end-to-end completo:
    - Diagrama ASCII simplificado
@@ -110,14 +110,14 @@ Nenhum desses itens está refletido na documentação existente (`README.md`, `d
 
 ### docs/observability.md
 
-#### [MODIFY] [observability.md](file:///home/lucas/Projects/n-gate/docs/observability.md)
+#### [MODIFY] [observability.md](file:///home/lucas/Projects/ishin-gateway/docs/observability.md)
 
 1. **Stack** — adicionar Micrometer e Resilience4j na tabela
 2. **Nova seção: Métricas Prometheus** — após seção de Componentes Internos:
    - Endpoint `/actuator/prometheus`
-   - Tabela de métricas inbound (`ngate.requests.total`, `ngate.request.duration`, `ngate.request.errors`)
-   - Tabela de métricas upstream (`ngate.upstream.requests`, `ngate.upstream.duration`, `ngate.upstream.errors`)
-   - Tabela de métricas cluster (`ngate.cluster.active.members`, `ngate.cluster.is.leader`)
+   - Tabela de métricas inbound (`ishin.requests.total`, `ishin.request.duration`, `ishin.request.errors`)
+   - Tabela de métricas upstream (`ishin.upstream.requests`, `ishin.upstream.duration`, `ishin.upstream.errors`)
+   - Tabela de métricas cluster (`ishin.cluster.active.members`, `ishin.cluster.is.leader`)
    - Tabela de métricas circuit breaker (Resilience4j auto-registered)
 3. **Nova seção: Circuit Breaker** — headers e comportamento:
    - Header `x-circuit-breaker: OPEN` no 503
@@ -127,11 +127,11 @@ Nenhum desses itens está refletido na documentação existente (`README.md`, `d
 
 ### Diagramas PlantUML
 
-#### [NEW] [cluster_topology.puml](file:///home/lucas/Projects/n-gate/docs/diagrams/cluster_topology.puml)
+#### [NEW] [cluster_topology.puml](file:///home/lucas/Projects/ishin-gateway/docs/diagrams/cluster_topology.puml)
 
 Diagrama de topologia do cluster mostrando:
 - Load Balancer (nginx) na frente
-- 3 nós n-gate com NGrid mesh TCP entre eles
+- 3 nós ishin-gateway com NGrid mesh TCP entre eles
 - DistributedMap para tokens e rules bundles
 - Backends compartilhados
 - Portas de cada componente
@@ -141,7 +141,7 @@ Diagrama de topologia do cluster mostrando:
 ## Verification Plan
 
 ### Validação Visual dos Diagramas
-- Acessar `https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/cluster_topology.puml` após merge para validar renderização
+- Acessar `https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/ishin-gateway/main/docs/diagrams/cluster_topology.puml` após merge para validar renderização
 - Como os diagramas só renderizam via proxy a partir do GitHub raw URL, a validação local é pela sintaxe PlantUML
 
 ### Revisão Manual de Consistência

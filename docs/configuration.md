@@ -1,6 +1,6 @@
 # Referência de Configuração — adapter.yaml
 
-O n-gate é configurado através do arquivo `adapter.yaml`, cujo caminho é definido pela variável de ambiente `NGATE_CONFIG` (padrão: `config/adapter.yaml`).
+O ishin-gateway é configurado através do arquivo `adapter.yaml`, cujo caminho é definido pela variável de ambiente `ISHIN_CONFIG` (padrão: `config/adapter.yaml`).
 
 ---
 
@@ -132,7 +132,7 @@ Cada URL Context define um padrão de rota e seu comportamento:
 
 ## Backends
 
-Cada backend representa um serviço de destino com upstream pool para onde o n-gate encaminha requests. A partir da v3.0, backends usam a lista `members` para definir servidores reais, com balanceamento de carga e health checks opcionais.
+Cada backend representa um serviço de destino com upstream pool para onde o ishin-gateway encaminha requests. A partir da v3.0, backends usam a lista `members` para definir servidores reais, com balanceamento de carga e health checks opcionais.
 
 > [!IMPORTANT]
 > **API BREAKER v3.0:** O campo `endPointUrl` foi removido. Todos os backends devem usar `members`.
@@ -163,8 +163,8 @@ backends:
       healthyThreshold: 2
     oauthClientConfig:               # Opcional: credenciais OAuth2
       ssoName: "inventory-keycloak"
-      clientId: "ngate-client"
-      clientSecret: "ngate-secret"
+      clientId: "ishin-client"
+      clientSecret: "ishin-secret"
       userName: "inventory-svc"
       password: "inventory-svc-pass"
       tokenServerUrl: "http://keycloak:8080/realms/.../token"
@@ -211,7 +211,7 @@ backends:
 
 ### OAuth Client Config
 
-Quando configurado, o n-gate obtém e injeta automaticamente um `Bearer` token no header `Authorization` de cada request ao backend.
+Quando configurado, o ishin-gateway obtém e injeta automaticamente um `Bearer` token no header `Authorization` de cada request ao backend.
 
 | Campo | Tipo | Default | Descrição |
 |-------|------|---------|-----------|
@@ -234,7 +234,7 @@ Configuração do decoder JWT para validação de tokens de entrada (quando `sec
 
 ```yaml
 secureProvider:
-  providerClass: "dev.nishisan.ngate.auth.jwt.JWTTokenDecoder"
+  providerClass: "dev.nishisan.ishin.auth.jwt.JWTTokenDecoder"
   name: "local-keycloak-jwt"
   options:
     issuerUri: http://keycloak:8080/realms/inventory-dev
@@ -250,7 +250,7 @@ secureProvider:
 | `options` | Map | Opções passadas ao decoder (ex: `issuerUri`, `jwkSetUri`) |
 
 O `providerClass` pode ser:
-- `dev.nishisan.ngate.auth.jwt.JWTTokenDecoder` — Decoder built-in
+- `dev.nishisan.ishin.auth.jwt.JWTTokenDecoder` — Decoder built-in
 - Caminho de um script Groovy em `custom/` — Decoder customizado via closures
 
 ---
@@ -297,19 +297,19 @@ Controla concorrência de requests upstream (usa Virtual Threads):
 
 ## Cluster Mode
 
-O bloco `cluster:` habilita o cluster mode com NGrid. Se ausente ou `enabled: false`, o n-gate opera em modo standalone.
+O bloco `cluster:` habilita o cluster mode com NGrid. Se ausente ou `enabled: false`, o ishin-gateway opera em modo standalone.
 
 ```yaml
 cluster:
   enabled: true
-  nodeId: "ngate-node1"              # Opcional: env NGATE_CLUSTER_NODE_ID → hostname → UUID
+  nodeId: "ishin-node1"              # Opcional: env ISHIN_CLUSTER_NODE_ID → hostname → UUID
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-cluster"
+  clusterName: "ishin-cluster"
   seeds:
-    - "ngate-node1:7100"
-    - "ngate-node2:7100"
-    - "ngate-node3:7100"
+    - "ishin-node1:7100"
+    - "ishin-node2:7100"
+    - "ishin-node3:7100"
   replicationFactor: 2
   dataDirectory: "/tmp/ngrid-data"
 ```
@@ -319,10 +319,10 @@ cluster:
 | Campo | Tipo | Default | Descrição |
 |-------|------|---------|-----------|
 | `enabled` | Boolean | `false` | Habilita o cluster mode NGrid |
-| `nodeId` | String | `null` | ID do nó (fallback: env `NGATE_CLUSTER_NODE_ID` → hostname → UUID) |
+| `nodeId` | String | `null` | ID do nó (fallback: env `ISHIN_CLUSTER_NODE_ID` → hostname → UUID) |
 | `host` | String | `"0.0.0.0"` | Endereço de bind do mesh TCP |
 | `port` | Integer | `7100` | Porta do mesh TCP NGrid |
-| `clusterName` | String | `"ngate-cluster"` | Nome do cluster (todos os nós devem usar o mesmo) |
+| `clusterName` | String | `"ishin-cluster"` | Nome do cluster (todos os nós devem usar o mesmo) |
 | `seeds` | List\<String\> | `[]` | Lista de peers no formato `host:port` (inclui o próprio nó — self-seed é filtrado automaticamente) |
 | `replicationFactor` | Integer | `2` | Fator de replicação dos dados no DistributedMap |
 | `dataDirectory` | String | `"./data/ngrid"` | Diretório para persistência de dados NGrid |
@@ -354,33 +354,33 @@ admin:
 | `/admin/rules/version` | GET | Versão do bundle de rules ativo |
 | `/admin/rules/list` | GET | Lista os scripts do bundle ativo com nome e tamanho |
 
-### CLI — `ngate-cli`
+### CLI — `ishin-cli`
 
-O pacote `.deb` instala o utilitário `ngate-cli` em `/usr/bin/`, que encapsula as chamadas à Admin API.
+O pacote `.deb` instala o utilitário `ishin-cli` em `/usr/bin/`, que encapsula as chamadas à Admin API.
 
 #### Configuração
 
-Via variáveis de ambiente ou arquivo `/etc/n-gate/cli.conf`:
+Via variáveis de ambiente ou arquivo `/etc/ishin-gateway/cli.conf`:
 
 | Variável | Default | Descrição |
 |----------|---------|-----------|
-| `NGATE_ADMIN_URL` | `http://localhost:9190` | URL base da Admin API |
-| `NGATE_API_KEY` | — | Chave de autenticação (obrigatória) |
+| `ISHIN_ADMIN_URL` | `http://localhost:9190` | URL base da Admin API |
+| `ISHIN_API_KEY` | — | Chave de autenticação (obrigatória) |
 
 #### Subcomandos
 
 ```bash
 # Deploy de rules a partir de um diretório
-ngate-cli deploy /etc/n-gate/rules
+ishin-cli deploy /etc/ishin-gateway/rules
 
 # Listar scripts do bundle ativo
-ngate-cli list
+ishin-cli list
 
 # Consultar versão do bundle ativo
-ngate-cli version
+ishin-cli version
 
 # Exibir ajuda
-ngate-cli help
+ishin-cli help
 ```
 
 #### Uso manual com curl
@@ -519,7 +519,7 @@ Para referência detalhada, veja [docs/rate-limiting.md](rate-limiting.md).
 
 ## Tunnel Mode
 
-O bloco `tunnel:` configura o Tunnel Mode, permitindo que o n-gate funcione como um TCP L4 load balancer. Requer `mode: tunnel` e `cluster.enabled: true`.
+O bloco `tunnel:` configura o Tunnel Mode, permitindo que o ishin-gateway funcione como um TCP L4 load balancer. Requer `mode: tunnel` e `cluster.enabled: true`.
 
 ### Campos de Nível Raiz
 
@@ -562,7 +562,7 @@ cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-cluster"
+  clusterName: "ishin-cluster"
   seeds:
     - "tunnel-node:7100"
     - "proxy-node-1:7100"
@@ -603,7 +603,7 @@ cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-cluster"
+  clusterName: "ishin-cluster"
   seeds:
     - "tunnel-node:7100"
     - "proxy-node-1:7100"
@@ -616,12 +616,13 @@ cluster:
 
 | Variável | Default | Descrição |
 |----------|---------|-----------|
-| `NGATE_CONFIG` | `config/adapter.yaml` | Caminho do arquivo de configuração |
+| `ISHIN_CONFIG` | `config/adapter.yaml` | Caminho do arquivo de configuração |
 | `ZIPKIN_ENDPOINT` | — | URL do Zipkin collector (ex: `http://zipkin:9411/api/v2/spans`) |
 | `TRACING_ENABLED` | `true` | Habilita/desabilita tracing |
+| `TRACING_SAMPLE_RATE` | `1.0` | Taxa de amostragem de traces (`0.0` a `1.0`). Ex: `0.1` = 10% dos requests |
 | `SPRING_PROFILES_DEFAULT` | `dev` | Profile Spring Boot ativo (`dev`, `bench`) |
-| `NGATE_CLUSTER_NODE_ID` | — | ID do nó do cluster (override do `nodeId` do YAML) |
-| `NGATE_INSTANCE_ID` | hostname | ID da instância para tracing spans |
+| `ISHIN_CLUSTER_NODE_ID` | — | ID do nó do cluster (override do `nodeId` do YAML) |
+| `ISHIN_INSTANCE_ID` | hostname | ID da instância para tracing spans |
 | `MANAGEMENT_PORT` | `9190` | Porta do Spring Boot Actuator (health, prometheus, admin API) |
 
 ---
@@ -696,7 +697,7 @@ endpoints:
         defaultBackend: "private-api"
         secured: true
         secureProvider:
-          providerClass: "dev.nishisan.ngate.auth.jwt.JWTTokenDecoder"
+          providerClass: "dev.nishisan.ishin.auth.jwt.JWTTokenDecoder"
           name: "keycloak-jwt"
           options:
             issuerUri: http://keycloak:8080/realms/my-realm
@@ -784,16 +785,16 @@ endpoints:
     dispatcherMaxRequests: 512
     dispatcherMaxRequestsPerHost: 256
 
-# nodeId é resolvido automaticamente via env NGATE_CLUSTER_NODE_ID
+# nodeId é resolvido automaticamente via env ISHIN_CLUSTER_NODE_ID
 cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-cluster"
+  clusterName: "ishin-cluster"
   seeds:
-    - "ngate-node1:7100"
-    - "ngate-node2:7100"
-    - "ngate-node3:7100"
+    - "ishin-node1:7100"
+    - "ishin-node2:7100"
+    - "ishin-node3:7100"
   replicationFactor: 2
   dataDirectory: "/tmp/ngrid-data"
 
@@ -808,4 +809,4 @@ circuitBreaker:
   slidingWindowSize: 100
 ```
 
-> **Nota:** O `nodeId` é diferente para cada instância. Em Docker, use a variável de ambiente `NGATE_CLUSTER_NODE_ID` para definir o hostname do container. Veja `docker-compose.cluster.yml` para exemplo completo.
+> **Nota:** O `nodeId` é diferente para cada instância. Em Docker, use a variável de ambiente `ISHIN_CLUSTER_NODE_ID` para definir o hostname do container. Veja `docker-compose.cluster.yml` para exemplo completo.

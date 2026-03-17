@@ -1,6 +1,6 @@
 # Desenvolvimento
 
-Guia para desenvolvedores que desejam compilar, testar e contribuir com o n-gate.
+Guia para desenvolvedores que desejam compilar, testar e contribuir com o ishin-gateway.
 
 ## Pré-requisitos
 
@@ -57,7 +57,7 @@ mvn test -Dtest='CircuitBreakerIntegrationTest'
 ```
 
 > [!IMPORTANT]
-> Testes de integração constroem a imagem Docker do n-gate e levantam containers de mock backends.
+> Testes de integração constroem a imagem Docker do ishin-gateway e levantam containers de mock backends.
 > A primeira execução baixa imagens base e pode demorar vários minutos.
 
 ### Suíte Completa

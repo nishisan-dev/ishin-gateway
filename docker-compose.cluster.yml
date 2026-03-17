@@ -1,5 +1,5 @@
 # docker-compose.cluster.yml
-# Profile cluster para benchmark: 3 nós n-gate com NGrid mesh + nginx LB
+# Profile cluster para benchmark: 3 nós Ishin Gateway com NGrid mesh + nginx LB
 #
 # Uso:
 #   docker compose -f docker-compose.yml -f docker-compose.cluster.yml up -d
@@ -10,19 +10,19 @@
 # Cenários de benchmark:
 #   1. baseline        → nginx direto (static-backend:8080)
 #   2. nginx_proxy     → nginx-proxy → static-backend (como standalone)
-#   3. javalin_proxy   → ngate-node1 direto (nó primário)
-#   4. cluster_node2   → ngate-node2 direto (nó secundário)
-#   5. cluster_node3   → ngate-node3 direto (nó secundário)
-#   6. cluster_lb      → nginx round-robin → 3 nós n-gate
+#   3. javalin_proxy   → ishin-node1 direto (nó primário))
+#   4. cluster_node2   → ishin-node2 direto (nó secundário)
+#   5. cluster_node3   → ishin-node3 direto (nó secundário)
+#   6. cluster_lb      → nginx round-robin → 3 nós Ishin Gateway
 #
 # Portas expostas:
-#   - 5080: nginx LB (round-robin → 3 nós n-gate)
-#   - 9191/9192/9193: cada nó n-gate diretamente (listener http-noauth)
+#   - 5080: nginx LB (round-robin → 3 nós Ishin Gateway)
+#   - 9191/9192/9193: cada nó Ishin Gateway diretamente (listener http-noauth)
 #   - 9291/9292/9293: Actuator health de cada nó
 #
 services:
-  # --- Desabilitar o serviço n-gate standalone (0 réplicas) ---
-  n-gate:
+  # --- Desabilitar o serviço ishin-gateway standalone (0 réplicas) ---
+  ishin-gateway:
     deploy:
       replicas: 0
 
@@ -34,9 +34,9 @@ services:
     ports:
       - "5080:8080"
     depends_on:
-      - ngate-node1
-      - ngate-node2
-      - ngate-node3
+      - ishin-node1
+      - ishin-node2
+      - ishin-node3
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
       interval: 5s
@@ -44,45 +44,45 @@ services:
       retries: 3
 
   # --- Nó 1 (base template via YAML anchor) ---
-  ngate-node1: &ngate-node
+  ishin-node1: &ishin-node
     image: maven:3.9.9-eclipse-temurin-21
     working_dir: /workspace
     depends_on:
       - static-backend
-    environment: &ngate-env
+    environment: &ishin-env
       SPRING_PROFILES_DEFAULT: bench
-      NGATE_CONFIG: /workspace/config/adapter-cluster.yaml
+      ISHIN_CONFIG: /workspace/config/adapter-cluster.yaml
       TRACING_ENABLED: "false"
       MAVEN_CONFIG: /tmp/.m2
-      NGATE_CLUSTER_NODE_ID: "ngate-node1"
-    volumes: &ngate-volumes
+      ISHIN_CLUSTER_NODE_ID: "ishin-node1"
+    volumes: &ishin-volumes
       - ./:/workspace
       - maven-cache:/tmp/.m2
       - ~/.m2/settings.xml:/tmp/maven-settings.xml:ro
-    command: &ngate-cmd
+    command: &ishin-cmd
       - /bin/bash
       - -lc
-      - mvn -s /tmp/maven-settings.xml -DskipTests package -q && java -Dspring.profiles.active=bench -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/n-gate-1.0-SNAPSHOT.jar
+      - mvn -s /tmp/maven-settings.xml -DskipTests package -q && java -Dspring.profiles.active=bench -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/ishin-gateway-1.0-SNAPSHOT.jar
     ports:
       - "9191:9091"
       - "9291:9190"
 
   # --- Nó 2 ---
-  ngate-node2:
-    <<: *ngate-node
+  ishin-node2:
+    <<: *ishin-node
     environment:
-      <<: *ngate-env
-      NGATE_CLUSTER_NODE_ID: "ngate-node2"
+      <<: *ishin-env
+      ISHIN_CLUSTER_NODE_ID: "ishin-node2"
     ports:
       - "9192:9091"
       - "9292:9190"
 
   # --- Nó 3 ---
-  ngate-node3:
-    <<: *ngate-node
+  ishin-node3:
+    <<: *ishin-node
     environment:
-      <<: *ngate-env
-      NGATE_CLUSTER_NODE_ID: "ngate-node3"
+      <<: *ishin-env
+      ISHIN_CLUSTER_NODE_ID: "ishin-node3"
     ports:
       - "9193:9091"
       - "9293:9190"
@@ -90,14 +90,14 @@ services:
   # --- Benchmark UI: aponta para nós de cluster ---
   benchmark-ui:
     environment:
-      JAVALIN_PROXY_URL: "http://ngate-node1:9091/"
-      CLUSTER_NODE1_URL: "http://ngate-node1:9091/"
-      CLUSTER_NODE2_URL: "http://ngate-node2:9091/"
-      CLUSTER_NODE3_URL: "http://ngate-node3:9091/"
+      JAVALIN_PROXY_URL: "http://ishin-node1:9091/"
+      CLUSTER_NODE1_URL: "http://ishin-node1:9091/"
+      CLUSTER_NODE2_URL: "http://ishin-node2:9091/"
+      CLUSTER_NODE3_URL: "http://ishin-node3:9091/"
       CLUSTER_LB_URL: "http://nginx-cluster-lb:8080/"
     depends_on:
       - static-backend
       - nginx-cluster-lb
-      - ngate-node1
-      - ngate-node2
-      - ngate-node3
+      - ishin-node1
+      - ishin-node2
+      - ishin-node3

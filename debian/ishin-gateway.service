@@ -1,0 +1,23 @@
+[Unit]
+Description=ishin-gateway API Gateway
+After=network.target
+
+[Service]
+Type=simple
+User=ishin-gateway
+Group=ishin-gateway
+WorkingDirectory=/etc/ishin-gateway
+ExecStart=/usr/bin/java \
+    -jar /opt/ishin-gateway/ishin-gateway.jar \
+    -Dlog4j.configurationFile=/etc/ishin-gateway/log4j2.xml
+Restart=on-failure
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/log/ishin-gateway /var/lib/ishin-gateway /etc/ishin-gateway/rules
+ReadOnlyPaths=/etc/ishin-gateway/adapter.yaml /etc/ishin-gateway/ssl /opt/ishin-gateway
+
+[Install]
+WantedBy=multi-user.target

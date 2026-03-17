@@ -3,7 +3,7 @@
 skinparam backgroundColor #FEFEFE
 skinparam componentStyle rectangle
 
-title n-gate — Tunnel Mode Topology
+title ishin-gateway — Tunnel Mode Topology
 
 package "Proxy Instances (mode: proxy)" {
   component [Proxy A\n9091→19091] as PA
@@ -12,7 +12,7 @@ package "Proxy Instances (mode: proxy)" {
 }
 
 cloud "NGrid Mesh" as NGRID {
-  database "DistributedMap\nngate-tunnel-registry" as NMAP
+  database "DistributedMap\nishin-tunnel-registry" as NMAP
 }
 
 package "Tunnel Instance (mode: tunnel)" {

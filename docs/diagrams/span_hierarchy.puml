@@ -1,5 +1,5 @@
 @startuml
-title n-gate — Span Hierarchy (Zipkin/Brave)
+title ishin-gateway — Span Hierarchy (Zipkin/Brave)
 
 skinparam backgroundColor #FAFAFA
 skinparam defaultFontName Inter

@@ -1,11 +1,11 @@
 @startuml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
-title n-gate — Diagrama de Containers (C4)
+title ishin-gateway — Diagrama de Containers (C4)
 
 Person(client, "Cliente HTTP", "Aplicação ou usuário que consome APIs")
 
-System_Boundary(ngate_boundary, "n-gate") {
+System_Boundary(ishin_boundary, "ishin-gateway") {
     Container(javalin, "Javalin 7 / Jetty 12", "Java 21", "Servidor HTTP com múltiplos listeners (portas independentes)")
     Container(groovy, "Groovy Rules Engine", "Groovy 3", "Motor de regras dinâmicas com hot-reload (60s)")
     Container(auth, "Auth Layer", "JWT / OAuth2", "Validação JWT (entrada) + OAuth2 Client (saída)")

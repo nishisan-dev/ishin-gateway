@@ -1,6 +1,6 @@
 # Passive Health Check — Status Code com Sliding Window
 
-O n-gate atualmente possui apenas **active health check** (probing periódico via `UpstreamHealthChecker`). Esta feature adiciona **passive health check** — monitoramento das respostas reais do tráfego de produção para detectar membros degradados com base em status codes observados dentro de uma janela temporal deslizante.
+O ishin-gateway atualmente possui apenas **active health check** (probing periódico via `UpstreamHealthChecker`). Esta feature adiciona **passive health check** — monitoramento das respostas reais do tráfego de produção para detectar membros degradados com base em status codes observados dentro de uma janela temporal deslizante.
 
 ## Contrato YAML proposto
 
@@ -42,20 +42,20 @@ backends:
 
 ### Componente 1: Configuração
 
-#### [NEW] [PassiveHealthCheckConfiguration.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/PassiveHealthCheckConfiguration.java)
+#### [NEW] [PassiveHealthCheckConfiguration.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/PassiveHealthCheckConfiguration.java)
 
 Configuração raiz do passive health check:
 - `boolean enabled` (default: `false`)
 - `Map<Integer, StatusCodeRule> statusCodes` — mapa de HTTP status → regra
 - `int recoverySeconds` (default: `30`)
 
-#### [NEW] [StatusCodeRule.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/StatusCodeRule.java)
+#### [NEW] [StatusCodeRule.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/StatusCodeRule.java)
 
 POJO para cada regra de status code:
 - `int maxOccurrences`
 - `int slidingWindowSeconds`
 
-#### [MODIFY] [BackendConfiguration.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/BackendConfiguration.java)
+#### [MODIFY] [BackendConfiguration.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/BackendConfiguration.java)
 
 - Adicionar campo `PassiveHealthCheckConfiguration passiveHealthCheck` com getter/setter.
 
@@ -63,7 +63,7 @@ POJO para cada regra de status code:
 
 ### Componente 2: Estrutura de dados — Sliding Window
 
-#### [NEW] [StatusCodeSlidingWindow.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/upstream/StatusCodeSlidingWindow.java)
+#### [NEW] [StatusCodeSlidingWindow.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/upstream/StatusCodeSlidingWindow.java)
 
 Janela deslizante baseada em timestamps — uma instância por (membro, status code):
 - Internamente usa `ConcurrentLinkedDeque<Long>` com timestamps em millis.
@@ -75,7 +75,7 @@ Janela deslizante baseada em timestamps — uma instância por (membro, status c
 
 ### Componente 3: Motor de avaliação
 
-#### [NEW] [PassiveHealthChecker.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/upstream/PassiveHealthChecker.java)
+#### [NEW] [PassiveHealthChecker.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/upstream/PassiveHealthChecker.java)
 
 Responsável por:
 1. **`reportStatusCode(backendName, memberUrl, statusCode)`** — chamado pelo `HttpProxyManager` após cada resposta upstream. Registra na sliding window correspondente e avalia se o threshold foi violado.
@@ -90,7 +90,7 @@ Map<String, Map<String, Map<Integer, StatusCodeSlidingWindow>>>
      ↑ backendName  ↑ memberUrl   ↑ statusCode
 ```
 
-#### [MODIFY] [UpstreamMemberState.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/upstream/UpstreamMemberState.java)
+#### [MODIFY] [UpstreamMemberState.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/upstream/UpstreamMemberState.java)
 
 - Adicionar `AtomicBoolean passivelyMarkedDown` para distinguir quem derrubou o membro.
 - Adicionar `AtomicLong passiveDownSince` para controle de recovery.
@@ -101,7 +101,7 @@ Map<String, Map<String, Map<Integer, StatusCodeSlidingWindow>>>
 
 ### Componente 4: Integração no fluxo de proxy
 
-#### [MODIFY] [HttpProxyManager.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/HttpProxyManager.java)
+#### [MODIFY] [HttpProxyManager.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/HttpProxyManager.java)
 
 Após receber a resposta do upstream (em torno da linha 667, onde `res.code()` é lido), adicionar:
 
@@ -115,7 +115,7 @@ if (passiveHealthChecker != null) {
 - Injetar `PassiveHealthChecker` via construtor (mesmo padrão dos demais managers).
 - Adicionar tag de tracing: `requestSpan.tag("passive.hc.reported", true)`.
 
-#### [MODIFY] [EndpointManager.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/manager/EndpointManager.java)
+#### [MODIFY] [EndpointManager.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/manager/EndpointManager.java)
 
 - Instanciar `PassiveHealthChecker` e passá-lo ao `HttpProxyManager`.
 - Chamar `passiveHealthChecker.start(...)` junto com `healthChecker.start(...)`.
@@ -125,7 +125,7 @@ if (passiveHealthChecker != null) {
 
 ### Componente 5: Configuração upstream do pool
 
-#### [MODIFY] [UpstreamPool.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/upstream/UpstreamPool.java)
+#### [MODIFY] [UpstreamPool.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/upstream/UpstreamPool.java)
 
 - Armazenar `PassiveHealthCheckConfiguration` recebida do `BackendConfiguration`.
 - Expôr via `getPassiveHealthCheckConfig()`.
@@ -134,11 +134,11 @@ if (passiveHealthChecker != null) {
 
 ### Componente 6: Documentação
 
-#### [MODIFY] [upstream-pool.md](file:///home/g0004218/Projects/n-gate/docs/upstream-pool.md)
+#### [MODIFY] [upstream-pool.md](file:///home/g0004218/Projects/ishin-gateway/docs/upstream-pool.md)
 
 - Adicionar seção "### Passive Health Check" com configuração YAML e semântica.
 
-#### [MODIFY] [upstream_pool.puml](file:///home/g0004218/Projects/n-gate/docs/diagrams/upstream_pool.puml)
+#### [MODIFY] [upstream_pool.puml](file:///home/g0004218/Projects/ishin-gateway/docs/diagrams/upstream_pool.puml)
 
 - Adicionar componentes `PassiveHealthChecker` e `StatusCodeSlidingWindow`.
 
@@ -148,7 +148,7 @@ if (passiveHealthChecker != null) {
 
 ### Automated Tests
 
-#### [NEW] [PassiveHealthCheckerTest.java](file:///home/g0004218/Projects/n-gate/src/test/java/dev/nishisan/ngate/upstream/PassiveHealthCheckerTest.java)
+#### [NEW] [PassiveHealthCheckerTest.java](file:///home/g0004218/Projects/ishin-gateway/src/test/java/dev/nishisan/ishin/upstream/PassiveHealthCheckerTest.java)
 
 | Test | Descrição |
 |------|-----------|
@@ -159,7 +159,7 @@ if (passiveHealthChecker != null) {
 | T5 | `successfulStatusCode_doesNotAffectWindows` — Status 200 não registra em nenhuma janela |
 | T6 | `disabledPassiveCheck_noEffect` — Com `enabled: false`, nenhum reporte afeta o membro |
 
-#### [NEW] [StatusCodeSlidingWindowTest.java](file:///home/g0004218/Projects/n-gate/src/test/java/dev/nishisan/ngate/upstream/StatusCodeSlidingWindowTest.java)
+#### [NEW] [StatusCodeSlidingWindowTest.java](file:///home/g0004218/Projects/ishin-gateway/src/test/java/dev/nishisan/ishin/upstream/StatusCodeSlidingWindowTest.java)
 
 | Test | Descrição |
 |------|-----------|
@@ -170,11 +170,11 @@ if (passiveHealthChecker != null) {
 #### Comando para rodar os testes:
 
 ```bash
-cd /home/g0004218/Projects/n-gate && mvn test -Dtest="PassiveHealthCheckerTest,StatusCodeSlidingWindowTest,UpstreamHealthCheckerTest" -DfailIfNoTests=false
+cd /home/g0004218/Projects/ishin-gateway && mvn test -Dtest="PassiveHealthCheckerTest,StatusCodeSlidingWindowTest,UpstreamHealthCheckerTest" -DfailIfNoTests=false
 ```
 
 ### Build completo:
 
 ```bash
-cd /home/g0004218/Projects/n-gate && mvn clean compile test
+cd /home/g0004218/Projects/ishin-gateway && mvn clean compile test
 ```

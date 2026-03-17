@@ -1,6 +1,6 @@
 # Planejamento: Async Body Tee + Structured Access Log
 
-> Features para posicionar o n-gate como ferramenta MITM de observabilidade.
+> Features para posicionar o ishin-gateway como ferramenta MITM de observabilidade.
 
 ---
 
@@ -8,7 +8,7 @@
 
 ### Problema
 
-Hoje o n-gate opera em dois modos mutuamente exclusivos:
+Hoje o ishin-gateway opera em dois modos mutuamente exclusivos:
 
 - `returnPipe = true` — Streaming direto, mas **sem acesso ao body** (não materializa)
 - `returnPipe = false` — Body em memória, **impactando latência e memória**
@@ -32,7 +32,7 @@ Backend InputStream
 #### 1. Nova classe: `TeeInputStream`
 
 ```
-[NEW] src/main/java/dev/nishisan/ngate/http/tee/TeeInputStream.java
+[NEW] src/main/java/dev/nishisan/ishin/http/tee/TeeInputStream.java
 ```
 
 Wrapper sobre `InputStream` que, a cada `read()`, copia os bytes para um `ByteArrayOutputStream` interno (ou `PipedOutputStream` para processamento assíncrono).
@@ -66,7 +66,7 @@ public class TeeInputStream extends InputStream {
 #### 2. Nova classe: `BodyTeeHandler`
 
 ```
-[NEW] src/main/java/dev/nishisan/ngate/http/tee/BodyTeeHandler.java
+[NEW] src/main/java/dev/nishisan/ishin/http/tee/BodyTeeHandler.java
 ```
 
 Gerencia o lifecycle do tee e despacha o body capturado para processamento assíncrono (fora do hot path):
@@ -90,7 +90,7 @@ public class BodyTeeHandler {
 #### 3. Interface `BodyCaptureSink`
 
 ```
-[NEW] src/main/java/dev/nishisan/ngate/http/tee/BodyCaptureSink.java
+[NEW] src/main/java/dev/nishisan/ishin/http/tee/BodyCaptureSink.java
 ```
 
 Permite múltiplos destinos para o body capturado:
@@ -110,7 +110,7 @@ Implementações possíveis (futuras):
 #### 4. Modificar `HttpResponseAdapter.writeResponse()`
 
 ```
-[MODIFY] src/main/java/dev/nishisan/ngate/http/HttpResponseAdapter.java
+[MODIFY] src/main/java/dev/nishisan/ishin/http/HttpResponseAdapter.java
 ```
 
 Na **Fase 5** (streaming pipe), envolver o `InputStream` do upstream com o `TeeInputStream`:
@@ -152,13 +152,13 @@ endpoints:
       sink: "log"                 # "log", "file", "webhook"
       sinkConfig:
         webhookUrl: "http://..."  # se sink = webhook
-        fileDir: "/var/log/ngate" # se sink = file
+        fileDir: "/var/log/ishin" # se sink = file
 ```
 
 #### 6. Nova classe de configuração
 
 ```
-[NEW] src/main/java/dev/nishisan/ngate/configuration/BodyTeeConfiguration.java
+[NEW] src/main/java/dev/nishisan/ishin/configuration/BodyTeeConfiguration.java
 ```
 
 POJO mapeado do YAML:
@@ -192,7 +192,7 @@ O dispatch do body capturado é sempre **assíncrono** (Virtual Thread), garanti
 
 ### Problema
 
-Hoje os logs do n-gate são textuais (Log4j2), dificultando análise automatizada, correlação e ingestão por ferramentas como Elasticsearch, Loki ou CloudWatch.
+Hoje os logs do ishin-gateway são textuais (Log4j2), dificultando análise automatizada, correlação e ingestão por ferramentas como Elasticsearch, Loki ou CloudWatch.
 
 ### Conceito
 
@@ -203,7 +203,7 @@ Um **access log estruturado em JSON** emitido ao final de cada request, contendo
 #### 1. Nova classe: `AccessLogEntry`
 
 ```
-[NEW] src/main/java/dev/nishisan/ngate/logging/AccessLogEntry.java
+[NEW] src/main/java/dev/nishisan/ishin/logging/AccessLogEntry.java
 ```
 
 Record (Java 21) com todos os campos do access log:
@@ -255,14 +255,14 @@ public record AccessLogEntry(
 #### 2. Nova classe: `AccessLogEmitter`
 
 ```
-[NEW] src/main/java/dev/nishisan/ngate/logging/AccessLogEmitter.java
+[NEW] src/main/java/dev/nishisan/ishin/logging/AccessLogEmitter.java
 ```
 
 Responsável por serializar e emitir o `AccessLogEntry`:
 
 ```java
 public class AccessLogEmitter {
-    private static final Logger ACCESS_LOG = LogManager.getLogger("ngate.access");
+    private static final Logger ACCESS_LOG = LogManager.getLogger("ishin.access");
     private final Gson gson;
 
     public void emit(AccessLogEntry entry) {
@@ -271,11 +271,11 @@ public class AccessLogEmitter {
 }
 ```
 
-Usa um **logger dedicado** (`ngate.access`) configurado com appender próprio no Log4j2, separado do log principal:
+Usa um **logger dedicado** (`ishin.access`) configurado com appender próprio no Log4j2, separado do log principal:
 
 ```xml
 <!-- log4j2.xml — novo appender para access log -->
-<Logger name="ngate.access" level="INFO" additivity="false">
+<Logger name="ishin.access" level="INFO" additivity="false">
     <AppenderRef ref="AccessLogFile"/>
 </Logger>
 
@@ -292,7 +292,7 @@ Usa um **logger dedicado** (`ngate.access`) configurado com appender próprio no
 #### 3. Coleta de timings: `RequestTimings`
 
 ```
-[NEW] src/main/java/dev/nishisan/ngate/logging/RequestTimings.java
+[NEW] src/main/java/dev/nishisan/ishin/logging/RequestTimings.java
 ```
 
 Objeto que acumula durações durante o pipeline:
@@ -314,7 +314,7 @@ public class RequestTimings {
 #### 4. Modificações no pipeline
 
 ```
-[MODIFY] src/main/java/dev/nishisan/ngate/http/HttpWorkLoad.java
+[MODIFY] src/main/java/dev/nishisan/ishin/http/HttpWorkLoad.java
 ```
 
 Adicionar campo `RequestTimings` ao `HttpWorkLoad`:
@@ -325,7 +325,7 @@ public RequestTimings getTimings() { return timings; }
 ```
 
 ```
-[MODIFY] src/main/java/dev/nishisan/ngate/http/HttpProxyManager.java
+[MODIFY] src/main/java/dev/nishisan/ishin/http/HttpProxyManager.java
 ```
 
 Instrumentar `evalDynamicRules()` e `handleRequest()` para registrar timings:
@@ -343,7 +343,7 @@ workLoad.getTimings().markUpstreamEnd();
 ```
 
 ```
-[MODIFY] src/main/java/dev/nishisan/ngate/http/EndpointWrapper.java
+[MODIFY] src/main/java/dev/nishisan/ishin/http/EndpointWrapper.java
 ```
 
 No bloco `finally` do handler (onde `rootSpan.finish()` é chamado), emitir o access log:
@@ -369,7 +369,7 @@ endpoints:
     accessLog:
       enabled: true               # default: habilitado
       format: "json"              # "json" ou "combined" (Apache-style)
-      loggerName: "ngate.access"  # Logger Log4j2 dedicado
+      loggerName: "ishin.access"  # Logger Log4j2 dedicado
       includeHeaders: false       # logar headers do request (cuidado com PII)
       includeQueryString: true
       maskFields:                 # campos a mascarar
@@ -383,7 +383,7 @@ endpoints:
 #### 6. Configuração POJO
 
 ```
-[NEW] src/main/java/dev/nishisan/ngate/configuration/AccessLogConfiguration.java
+[NEW] src/main/java/dev/nishisan/ishin/configuration/AccessLogConfiguration.java
 ```
 
 ### Exemplo de Saída
@@ -418,8 +418,8 @@ endpoints:
 
 | Ferramenta | Como ingerir |
 |------------|-------------|
-| **Elasticsearch** | Filebeat → `log/access.log` → index `ngate-access-*` |
-| **Grafana Loki** | Promtail → `log/access.log` → label `{job="ngate"}` |
+| **Elasticsearch** | Filebeat → `log/access.log` → index `ishin-access-*` |
+| **Grafana Loki** | Promtail → `log/access.log` → label `{job="ishin"}` |
 | **CloudWatch** | Docker log driver → JSON já formatado |
 | **jq** | `cat log/access.log \| jq 'select(.status >= 500)'` |
 

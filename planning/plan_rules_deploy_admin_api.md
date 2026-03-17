@@ -2,7 +2,7 @@
 
 ## Contexto
 
-Continuar a Fase 2 do horizontal scaling do n-gate, implementando os itens **#6 (Rules Deploy)** e **#7 (Auth do Admin API)** do Mapa de Prioridades. Estes são os últimos itens pendentes da Fase 2. O cluster NGrid (#4) e token sharing OAuth (#5) já estão implementados e validados com testes de integração T1-T7.
+Continuar a Fase 2 do horizontal scaling do ishin-gateway, implementando os itens **#6 (Rules Deploy)** e **#7 (Auth do Admin API)** do Mapa de Prioridades. Estes são os últimos itens pendentes da Fase 2. O cluster NGrid (#4) e token sharing OAuth (#5) já estão implementados e validados com testes de integração T1-T7.
 
 > [!IMPORTANT]
 > - O GroovyScriptEngine (GSE) é criado **por endpoint** dentro do `HttpProxyManager.init()`. O swap atômico precisa substituir a referência `gse` no `HttpProxyManager`, não no `EndpointManager`.
@@ -15,7 +15,7 @@ Continuar a Fase 2 do horizontal scaling do n-gate, implementando os itens **#6 
 
 ### Componente: Model (RulesBundle)
 
-#### [NEW] [RulesBundle.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/rules/RulesBundle.java)
+#### [NEW] [RulesBundle.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/rules/RulesBundle.java)
 
 Record `Serializable` que encapsula um deploy atômico de scripts:
 
@@ -35,7 +35,7 @@ public record RulesBundle(
 
 ### Componente: Rules Bundle Manager
 
-#### [NEW] [RulesBundleManager.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/rules/RulesBundleManager.java)
+#### [NEW] [RulesBundleManager.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/rules/RulesBundleManager.java)
 
 `@Service` Spring que gerencia o ciclo de vida dos bundles:
 
@@ -45,7 +45,7 @@ public record RulesBundle(
 3. **Materializar** scripts em diretório temporário
 4. **Criar** novo `GroovyScriptEngine` apontando para o dir temporário
 5. **Swap atômico**: notificar todos os `HttpProxyManager` ativos para trocar o GSE (via `volatile` reference)
-6. **Cluster**: publicar no `DistributedMap("ngate-rules")` para replicação
+6. **Cluster**: publicar no `DistributedMap("ishin-rules")` para replicação
 7. **Listener** do `DistributedMap` para aplicar bundles recebidos de outros nós
 
 **Integração com HttpProxyManager:**
@@ -66,7 +66,7 @@ if (existeBundlePersistedInDisk()) {
 
 ### Componente: Admin API (Endpoints + Auth)
 
-#### [NEW] [AdminApiConfiguration.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/AdminApiConfiguration.java)
+#### [NEW] [AdminApiConfiguration.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/AdminApiConfiguration.java)
 
 POJO Jackson para o bloco `admin:` do adapter.yaml:
 
@@ -78,11 +78,11 @@ public class AdminApiConfiguration {
 }
 ```
 
-#### [MODIFY] [ServerConfiguration.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/ServerConfiguration.java)
+#### [MODIFY] [ServerConfiguration.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/ServerConfiguration.java)
 
 Adicionar campo `AdminApiConfiguration admin` (nullable).
 
-#### [NEW] [AdminController.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/admin/AdminController.java)
+#### [NEW] [AdminController.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/admin/AdminController.java)
 
 `@RestController` Spring MVC na porta de management (9190 — Undertow/Actuator):
 
@@ -93,7 +93,7 @@ GET  /admin/rules/version    — retorna versão + timestamp do bundle ativo
 
 **Autenticação:** header `X-API-Key` validado contra `admin.apiKey` do adapter.yaml. Sem API Key configurada → endpoints desabilitados (403).
 
-#### [MODIFY] [adapter.yaml](file:///home/g0004218/Projects/n-gate/config/adapter.yaml)
+#### [MODIFY] [adapter.yaml](file:///home/g0004218/Projects/ishin-gateway/config/adapter.yaml)
 
 Adicionar bloco `admin:` comentado como exemplo:
 
@@ -108,17 +108,17 @@ Adicionar bloco `admin:` comentado como exemplo:
 
 ### Componente: HttpProxyManager (swap GSE)
 
-#### [MODIFY] [HttpProxyManager.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/HttpProxyManager.java)
+#### [MODIFY] [HttpProxyManager.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/HttpProxyManager.java)
 
 - Tornar campo `gse` **`volatile`**
 - Adicionar método público `swapGroovyEngine(GroovyScriptEngine newGse)`
 - O método `evalDynamicRules()` já lê `gse` localmente — com `volatile` o swap é thread-safe
 
-#### [MODIFY] [EndpointWrapper.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/EndpointWrapper.java)
+#### [MODIFY] [EndpointWrapper.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/EndpointWrapper.java)
 
 - Expor método `getProxyManager()` ou `swapGroovyEngine()` que delega para o `HttpProxyManager`
 
-#### [MODIFY] [EndpointManager.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/manager/EndpointManager.java)
+#### [MODIFY] [EndpointManager.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/manager/EndpointManager.java)
 
 - Tornar `activeWrappers` acessível (getter) para o `RulesBundleManager` iterar durante swap
 - Ou registrar os wrappers no `RulesBundleManager` após criação
@@ -127,10 +127,10 @@ Adicionar bloco `admin:` comentado como exemplo:
 
 ### Componente: Cluster Integration
 
-#### [MODIFY] [ClusterService.java](file:///home/g0004218/Projects/n-gate/src/main/java/dev/nishisan/ngate/cluster/ClusterService.java)
+#### [MODIFY] [ClusterService.java](file:///home/g0004218/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/cluster/ClusterService.java)
 
 - O `getDistributedMap()` já é genérico e funcional
-- `RulesBundleManager` usa `getDistributedMap("ngate-rules", String.class, RulesBundle.class)`
+- `RulesBundleManager` usa `getDistributedMap("ishin-rules", String.class, RulesBundle.class)`
 - Registrar listener de mudança no `DistributedMap` para aplicar bundle recebido de peers
 
 ---
@@ -163,7 +163,7 @@ mvn clean compile -DskipTests
 
 ### Verificação Manual
 
-1. **Subir n-gate local** com `docker-compose up`
+1. **Subir ishin-gateway local** com `docker-compose up`
 2. **Enviar deploy** com `curl -X POST -H "X-API-Key: test-key" -F "scripts=@rules/" http://localhost:9190/admin/rules/deploy`
 3. **Verificar versão**: `curl http://localhost:9190/admin/rules/version`
 4. **Health check**: `curl http://localhost:9190/actuator/health` — deve incluir info do bundle ativo

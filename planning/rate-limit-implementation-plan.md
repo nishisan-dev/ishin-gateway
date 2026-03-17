@@ -1,6 +1,6 @@
-# Rate Limiting — n-gate
+# Rate Limiting — ishin-gateway
 
-Implementação de rate limiting granular no n-gate, inspirado no `ngx_http_limit_req_module` do Nginx. A feature permite controlar a taxa de requests por **listener**, **rota (urlContext)** e **backend**, com dois modos de ação: `stall` (aguarda slot — equivalente ao `delay` do Nginx) e `nowait` (rejeita imediatamente com HTTP 429).
+Implementação de rate limiting granular no ishin-gateway, inspirado no `ngx_http_limit_req_module` do Nginx. A feature permite controlar a taxa de requests por **listener**, **rota (urlContext)** e **backend**, com dois modos de ação: `stall` (aguarda slot — equivalente ao `delay` do Nginx) e `nowait` (rejeita imediatamente com HTTP 429).
 
 ## Proposta de Configuração YAML
 
@@ -63,7 +63,7 @@ Se qualquer nível rejeitar, o request é bloqueado naquele ponto.
 
 ### Dependência Maven
 
-#### [MODIFY] [pom.xml](file:///home/lucas/Projects/n-gate/pom.xml)
+#### [MODIFY] [pom.xml](file:///home/lucas/Projects/ishin-gateway/pom.xml)
 
 Adicionar `resilience4j-ratelimiter` ao lado do `resilience4j-circuitbreaker` já existente:
 
@@ -80,7 +80,7 @@ Adicionar `resilience4j-ratelimiter` ao lado do `resilience4j-circuitbreaker` j�
 
 ### Configuração
 
-#### [NEW] [RateLimitZoneConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/RateLimitZoneConfiguration.java)
+#### [NEW] [RateLimitZoneConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/RateLimitZoneConfiguration.java)
 
 Configuração de uma zona individual de rate limiting (equivalente a uma `limit_req_zone` do Nginx).
 
@@ -89,7 +89,7 @@ Campos:
 - `limitRefreshPeriodSeconds` (int, default 1) — duração do período de refresh
 - `timeoutSeconds` (int, default 5) — tempo máximo de espera em modo stall
 
-#### [NEW] [RateLimitConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/RateLimitConfiguration.java)
+#### [NEW] [RateLimitConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/RateLimitConfiguration.java)
 
 Configuração global do bloco `rateLimiting:` no adapter.yaml.
 
@@ -98,7 +98,7 @@ Campos:
 - `defaultMode` (String, default "nowait") — `stall` ou `nowait`
 - `zones` (Map\<String, RateLimitZoneConfiguration\>) — zonas nomeadas
 
-#### [NEW] [RateLimitRefConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/RateLimitRefConfiguration.java)
+#### [NEW] [RateLimitRefConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/RateLimitRefConfiguration.java)
 
 Referência a uma zona, usada nos 3 níveis (listener, rota, backend).
 
@@ -106,19 +106,19 @@ Campos:
 - `zone` (String) — nome da zona definida em `rateLimiting.zones`
 - `mode` (String, nullable) — override de modo (`stall`/`nowait`); se null, usa `defaultMode`
 
-#### [MODIFY] [EndPointListenersConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/EndPointListenersConfiguration.java)
+#### [MODIFY] [EndPointListenersConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/EndPointListenersConfiguration.java)
 
 Adicionar campo `private RateLimitRefConfiguration rateLimit;` com getter/setter.
 
-#### [MODIFY] [EndPointURLContext.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/EndPointURLContext.java)
+#### [MODIFY] [EndPointURLContext.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/EndPointURLContext.java)
 
 Adicionar campo `private RateLimitRefConfiguration rateLimit;` com getter/setter.
 
-#### [MODIFY] [BackendConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/BackendConfiguration.java)
+#### [MODIFY] [BackendConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/BackendConfiguration.java)
 
 Adicionar campo `private RateLimitRefConfiguration rateLimit;` com getter/setter.
 
-#### [MODIFY] [ServerConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/ServerConfiguration.java)
+#### [MODIFY] [ServerConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/ServerConfiguration.java)
 
 Adicionar campo `private RateLimitConfiguration rateLimiting;` com getter/setter.
 
@@ -126,7 +126,7 @@ Adicionar campo `private RateLimitConfiguration rateLimiting;` com getter/setter
 
 ### Engine
 
-#### [NEW] [RateLimitManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/ratelimit/RateLimitManager.java)
+#### [NEW] [RateLimitManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/ratelimit/RateLimitManager.java)
 
 Manager centralizado que gerencia instâncias de `io.github.resilience4j.ratelimiter.RateLimiter` por chave composta (scope + nome).
 
@@ -138,7 +138,7 @@ Manager centralizado que gerencia instâncias de `io.github.resilience4j.ratelim
 - Em modo `nowait`: usa `rateLimiter.acquirePermission(Duration.ZERO)` (rejeita imediatamente)
 - Registra métricas Micrometer via `TaggedRateLimiterMetrics`
 
-#### [NEW] [RateLimitResult.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/ratelimit/RateLimitResult.java)
+#### [NEW] [RateLimitResult.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/ratelimit/RateLimitResult.java)
 
 Enum: `ALLOWED`, `REJECTED`, `DELAYED` — resultado da avaliação de rate limit.
 
@@ -146,7 +146,7 @@ Enum: `ALLOWED`, `REJECTED`, `DELAYED` — resultado da avaliação de rate limi
 
 ### Integração no Pipeline
 
-#### [MODIFY] [EndpointWrapper.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/EndpointWrapper.java)
+#### [MODIFY] [EndpointWrapper.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/EndpointWrapper.java)
 
 No método `registerRoutes()`, **antes** de chamar `proxyManager.handleRequest()`, injetar a avaliação de rate limit para:
 
@@ -166,7 +166,7 @@ Se `result == DELAYED`:
 - Span tag: `rate.limit=DELAYED`
 - Continua processamento
 
-#### [MODIFY] [HttpProxyManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/HttpProxyManager.java)
+#### [MODIFY] [HttpProxyManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/HttpProxyManager.java)
 
 No método `handleRequest()`, **antes** de executar o call upstream (mas após o Groovy rules), verificar rate limit do **backend** usando `backendConfiguration.getRateLimit()`.
 
@@ -177,7 +177,7 @@ Se rejeitado:
 - Header: `x-upstream-id: <backendname>`
 - Return imediato
 
-#### [MODIFY] [EndpointManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/manager/EndpointManager.java)
+#### [MODIFY] [EndpointManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/manager/EndpointManager.java)
 
 - Injetar `RateLimitManager` via `@Autowired`
 - Chamar `rateLimitManager.configure(serverConfig.getRateLimiting())` no `onStartup()`
@@ -187,17 +187,17 @@ Se rejeitado:
 
 ### Métricas Prometheus
 
-#### [MODIFY] [ProxyMetrics.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/observabitliy/ProxyMetrics.java)
+#### [MODIFY] [ProxyMetrics.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/observabitliy/ProxyMetrics.java)
 
 Adicionar método `recordRateLimitEvent(String scope, String zone, String result)`:
-- Counter: `ngate.ratelimit.total` com tags `scope`, `zone`, `result`
+- Counter: `ishin.ratelimit.total` com tags `scope`, `zone`, `result`
 - Onde `scope` = listener/route/backend, `result` = ALLOWED/REJECTED/DELAYED
 
 ---
 
 ### Configuração de Exemplo
 
-#### [MODIFY] [adapter.yaml](file:///home/lucas/Projects/n-gate/config/adapter.yaml)
+#### [MODIFY] [adapter.yaml](file:///home/lucas/Projects/ishin-gateway/config/adapter.yaml)
 
 Adicionar bloco comentado de exemplo do `rateLimiting:` no final do arquivo (seguindo o padrão do `circuitBreaker:`).
 
@@ -205,7 +205,7 @@ Adicionar bloco comentado de exemplo do `rateLimiting:` no final do arquivo (seg
 
 ### Documentação
 
-#### [NEW] [rate_limiting.md](file:///home/lucas/Projects/n-gate/docs/rate-limiting.md)
+#### [NEW] [rate_limiting.md](file:///home/lucas/Projects/ishin-gateway/docs/rate-limiting.md)
 
 Documentação da feature cobrindo:
 - Conceitos (zonas, modos stall vs nowait)
@@ -214,7 +214,7 @@ Documentação da feature cobrindo:
 - Métricas expostas
 - Exemplos de uso
 
-#### [NEW] [rate_limiting.puml](file:///home/lucas/Projects/n-gate/docs/diagrams/rate_limiting.puml)
+#### [NEW] [rate_limiting.puml](file:///home/lucas/Projects/ishin-gateway/docs/diagrams/rate_limiting.puml)
 
 Diagrama de sequência mostrando o fluxo de avaliação de rate limit através dos 3 níveis (listener → rota → backend).
 
@@ -224,12 +224,12 @@ Diagrama de sequência mostrando o fluxo de avaliação de rate limit através d
 
 ### Compilação
 ```bash
-cd /home/lucas/Projects/n-gate && mvn clean compile -DskipTests
+cd /home/lucas/Projects/ishin-gateway && mvn clean compile -DskipTests
 ```
 
 ### Testes Unitários
 
-Criar `RateLimitManagerTest.java` em `src/test/java/dev/nishisan/ngate/ratelimit/`:
+Criar `RateLimitManagerTest.java` em `src/test/java/dev/nishisan/ishin/ratelimit/`:
 
 1. **Modo nowait** — envia requests acima do limite, verifica que retorna `REJECTED`
 2. **Modo stall** — envia requests com delay configurado, verifica que retorna `DELAYED` e eventualmente `ALLOWED`
@@ -237,20 +237,20 @@ Criar `RateLimitManagerTest.java` em `src/test/java/dev/nishisan/ngate/ratelimit
 4. **Disabled** — verifica que com `enabled=false` todos os requests passam
 
 ```bash
-cd /home/lucas/Projects/n-gate && mvn test -Dtest="RateLimitManagerTest" -pl .
+cd /home/lucas/Projects/ishin-gateway && mvn test -Dtest="RateLimitManagerTest" -pl .
 ```
 
 ### Teste de Integração (Testcontainers)
 
-Criar `RateLimitIntegrationTest.java` em `src/test/java/dev/nishisan/ngate/observability/` seguindo o padrão do `CircuitBreakerIntegrationTest.java`:
+Criar `RateLimitIntegrationTest.java` em `src/test/java/dev/nishisan/ishin/observability/` seguindo o padrão do `CircuitBreakerIntegrationTest.java`:
 
 1. **T1: Nowait** — enviar burst > limite, verificar HTTP 429 + headers `x-rate-limit: REJECTED`
 2. **T2: Stall** — verificar que requests dentro do timeout são atendidos com delay
 3. **T3: Isolamento** — listener com rate limit não afeta listener sem rate limit
-4. **T4: Métricas** — verificar contadores `ngate_ratelimit_total` no `/actuator/prometheus`
+4. **T4: Métricas** — verificar contadores `ishin_ratelimit_total` no `/actuator/prometheus`
 
 ```bash
-cd /home/lucas/Projects/n-gate && mvn test -Dtest="RateLimitIntegrationTest" -pl .
+cd /home/lucas/Projects/ishin-gateway && mvn test -Dtest="RateLimitIntegrationTest" -pl .
 ```
 
 > [!IMPORTANT]

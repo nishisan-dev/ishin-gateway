@@ -1,6 +1,6 @@
 @startuml rate_limiting
 !theme plain
-title n-gate — Rate Limiting Flow
+title ishin-gateway — Rate Limiting Flow
 
 skinparam backgroundColor #FEFEFE
 skinparam sequenceArrowColor #333333

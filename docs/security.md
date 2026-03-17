@@ -1,13 +1,13 @@
-# Segurança e Políticas — n-gate
+# Segurança e Políticas — ishin-gateway
 
-O n-gate implementa um modelo de segurança em camadas que cobre tanto a **validação de requests de entrada** (JWT) quanto a **autenticação automática nos backends** (OAuth2).
+O ishin-gateway implementa um modelo de segurança em camadas que cobre tanto a **validação de requests de entrada** (JWT) quanto a **autenticação automática nos backends** (OAuth2).
 
 ---
 
 ## Modelo de Segurança
 
 ```
-Cliente                n-gate                         Backend
+Cliente                ishin-gateway                         Backend
   │                      │                               │
   │ ── Request + JWT ──▶ │                               │
   │                      │── Validate JWT (JWKS) ──┐     │
@@ -26,8 +26,8 @@ Cliente                n-gate                         Backend
 
 ### Duas Dimensões de Segurança
 
-1. **Inbound (Cliente → n-gate):** Validação de JWT no request de entrada
-2. **Outbound (n-gate → Backend):** Injeção automática de token OAuth2
+1. **Inbound (Cliente → ishin-gateway):** Validação de JWT no request de entrada
+2. **Outbound (ishin-gateway → Backend):** Injeção automática de token OAuth2
 
 Estas duas dimensões são **independentes**:
 - Um listener pode ser `secured: true` (exige JWT do cliente) e seu backend pode ter ou não `oauthClientConfig`
@@ -47,7 +47,7 @@ listeners:
     listenPort: 9090
     secured: true
     secureProvider:
-      providerClass: "dev.nishisan.ngate.auth.jwt.JWTTokenDecoder"
+      providerClass: "dev.nishisan.ishin.auth.jwt.JWTTokenDecoder"
       name: "my-jwt-decoder"
       options:
         issuerUri: http://keycloak:8080/realms/my-realm
@@ -82,7 +82,7 @@ if (principal != null) {
 
 ## Políticas de Segurança por Contexto
 
-O n-gate permite configuração granular de segurança **por URL Context**, indo além da configuração global do listener:
+O ishin-gateway permite configuração granular de segurança **por URL Context**, indo além da configuração global do listener:
 
 ```yaml
 listeners:
@@ -90,7 +90,7 @@ listeners:
     listenPort: 9090
     secured: true
     secureProvider:
-      providerClass: "dev.nishisan.ngate.auth.jwt.JWTTokenDecoder"
+      providerClass: "dev.nishisan.ishin.auth.jwt.JWTTokenDecoder"
       name: "jwt-decoder"
       options:
         issuerUri: http://keycloak:8080/realms/my-realm
@@ -128,7 +128,7 @@ listeners:
 
 ### Configuração
 
-Para que o n-gate injete automaticamente tokens OAuth2 nos requests ao backend:
+Para que o ishin-gateway injete automaticamente tokens OAuth2 nos requests ao backend:
 
 ```yaml
 backends:
@@ -162,7 +162,7 @@ backends:
 ### Fluxo de Token
 
 ```
-n-gate                           Keycloak
+ishin-gateway                           Keycloak
   │                                  │
   │── POST /token ──────────────────▶│
   │   grant_type=password            │
@@ -180,7 +180,7 @@ n-gate                           Keycloak
 
 ### Mascaramento nos Logs
 
-O n-gate mascara automaticamente tokens sensíveis nos logs:
+O ishin-gateway mascara automaticamente tokens sensíveis nos logs:
 - Headers `Authorization` são logados como `Bearer ***`
 - A verificação é feita com `header.equalsIgnoreCase("Authorization")`
 
@@ -208,7 +208,7 @@ Crie o arquivo `custom/MyDecoder.groovy`:
 ```groovy
 // custom/MyDecoder.groovy
 
-import dev.nishisan.ngate.auth.CustomUserPrincipal
+import dev.nishisan.ishin.auth.CustomUserPrincipal
 
 // Intervalo de recriação do decoder (segundos)
 decoder.decoderRecreateInterval = 3600
@@ -223,7 +223,7 @@ decoder.decodeTokenClosure = { ctx ->
     def authHeader = ctx.header("Authorization")
 
     if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-        throw new dev.nishisan.ngate.exception.TokenDecodeException("Missing token")
+        throw new dev.nishisan.ishin.exception.TokenDecodeException("Missing token")
     }
 
     def token = authHeader.replace("Bearer ", "")
@@ -252,7 +252,7 @@ decoder.decodeTokenClosure = { ctx ->
 
 ### Backend (Outbound)
 
-Por padrão, o n-gate usa um Trust Manager permissivo (`TRUST_ALL_MANAGER`) para conexões com backends. Isso significa:
+Por padrão, o ishin-gateway usa um Trust Manager permissivo (`TRUST_ALL_MANAGER`) para conexões com backends. Isso significa:
 - Aceita qualquer certificado SSL do backend
 - Não valida hostname
 

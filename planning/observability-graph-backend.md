@@ -1,8 +1,8 @@
-# Backend do Grafo de Observabilidade — n-gate
+# Backend do Grafo de Observabilidade — ishin-gateway
 
 ## Contexto
 
-O n-gate já possui métricas Micrometer para inbound (por listener) e upstream (por backend) via `ProxyMetrics`, coletadas automaticamente pelo `MetricsCollectorService` (prefixo `ngate.*`) e persistidas no H2/RRD via `DashboardStorageService`.
+O ishin-gateway já possui métricas Micrometer para inbound (por listener) e upstream (por backend) via `ProxyMetrics`, coletadas automaticamente pelo `MetricsCollectorService` (prefixo `ishin.*`) e persistidas no H2/RRD via `DashboardStorageService`.
 
 O objetivo é estender a instrumentação para incluir **contextos HTTP** e **scripts Groovy**, enriquecer a **topologia REST** com nós `context` e `script`, e garantir que tudo persista no RRD/H2.
 
@@ -15,34 +15,34 @@ O objetivo é estender a instrumentação para incluir **contextos HTTP** e **sc
 
 ### Componente 1: Instrumentação de Métricas
 
-#### [MODIFY] [ProxyMetrics.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/observability/ProxyMetrics.java)
+#### [MODIFY] [ProxyMetrics.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/observability/ProxyMetrics.java)
 
 Adicionar 4 novos métodos seguindo o padrão existente (Counter + Timer com cache por chave):
 
 1. **`recordContextRequest(listener, context, method, status, durationMs)`**
-   - Counter: `ngate.context.requests.total` — tags: `listener`, `context`, `method`, `status`
-   - Timer: `ngate.context.duration` — tags: `listener`, `context`, `method`
+   - Counter: `ishin.context.requests.total` — tags: `listener`, `context`, `method`, `status`
+   - Timer: `ishin.context.duration` — tags: `listener`, `context`, `method`
    - Permite derivar: req/s por contexto, avg/min/max latência por contexto
 
 2. **`recordContextError(listener, context, method)`**
-   - Counter: `ngate.context.errors` — tags: `listener`, `context`, `method`
+   - Counter: `ishin.context.errors` — tags: `listener`, `context`, `method`
 
 3. **`recordScriptExecution(listener, context, script, durationMs)`**
-   - Counter: `ngate.script.executions.total` — tags: `listener`, `context`, `script`
-   - Timer: `ngate.script.duration` — tags: `listener`, `context`, `script`
+   - Counter: `ishin.script.executions.total` — tags: `listener`, `context`, `script`
+   - Timer: `ishin.script.duration` — tags: `listener`, `context`, `script`
    - Permite derivar: exec/s por script, avg/min/max do tempo de execução
 
 4. **`recordScriptError(listener, context, script)`**
-   - Counter: `ngate.script.errors` — tags: `listener`, `context`, `script`
+   - Counter: `ishin.script.errors` — tags: `listener`, `context`, `script`
 
 > [!NOTE]
-> O `MetricsCollectorService` já coleta automaticamente qualquer meter com prefixo `ngate.*`, expandindo Timers para `.count`, `.mean` e `.max`. As novas métricas serão **automaticamente** coletadas e persistidas no H2/RRD sem modificações no collector.
+> O `MetricsCollectorService` já coleta automaticamente qualquer meter com prefixo `ishin.*`, expandindo Timers para `.count`, `.mean` e `.max`. As novas métricas serão **automaticamente** coletadas e persistidas no H2/RRD sem modificações no collector.
 
 ---
 
 ### Componente 2: Instrumentação no Hot Path
 
-#### [MODIFY] [HttpProxyManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/HttpProxyManager.java)
+#### [MODIFY] [HttpProxyManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/HttpProxyManager.java)
 
 Modificar `evalDynamicRules()` (L409-472) para:
 
@@ -58,7 +58,7 @@ Modificar `evalDynamicRules()` (L409-472) para:
 > [!IMPORTANT]
 > A métrica de **contexto** será adicionada em `EndpointWrapper.registerRoutes()` (no bloco `finally` do handler), e **não** dentro de `evalDynamicRules()`, para capturar a latência completa do contexto (incluindo upstream). `evalDynamicRules()` mede apenas os scripts.
 
-#### [MODIFY] [EndpointWrapper.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/EndpointWrapper.java)
+#### [MODIFY] [EndpointWrapper.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/EndpointWrapper.java)
 
 No bloco `finally` de ambos os handlers (L252-261 para handler typed, L390-399 para ANY handler):
 - Adicionar chamada `proxyMetrics.recordContextRequest(name, contextName, method, statusCode, durationMs)` ao lado do `recordInboundRequest` existente
@@ -68,7 +68,7 @@ No bloco `finally` de ambos os handlers (L252-261 para handler typed, L390-399 p
 
 ### Componente 3: Enriquecer Topologia
 
-#### [MODIFY] [DashboardApiRoutes.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/dashboard/api/DashboardApiRoutes.java)
+#### [MODIFY] [DashboardApiRoutes.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/dashboard/api/DashboardApiRoutes.java)
 
 Modificar `buildTopology()` (L178-261) para adicionar nós e edges de contexto + script:
 
@@ -99,17 +99,17 @@ Modificar `buildTopology()` (L178-261) para adicionar nós e edges de contexto +
 
 **Edges novos**:
 - `listener → context` (type: `context`)
-- `context → ngate` (type: `inbound-context`)
+- `context → ishin` (type: `inbound-context`)
 - `context → script` (type: `script-exec`) — quando script existir
 
 > [!NOTE]
-> A edge `listener → ngate` existente será mantida para backward-compatibility. Os nós e edges novos são aditivos.
+> A edge `listener → ishin` existente será mantida para backward-compatibility. Os nós e edges novos são aditivos.
 
 ---
 
 ### Componente 4: Testes
 
-#### [NEW] [ContextScriptMetricsTest.java](file:///home/lucas/Projects/n-gate/src/test/java/dev/nishisan/ngate/observability/ContextScriptMetricsTest.java)
+#### [NEW] [ContextScriptMetricsTest.java](file:///home/lucas/Projects/ishin-gateway/src/test/java/dev/nishisan/ishin/observability/ContextScriptMetricsTest.java)
 
 Teste **unitário** (sem containers) que valida:
 - `ProxyMetrics.recordContextRequest()` registra Counter + Timer no MeterRegistry
@@ -120,13 +120,13 @@ Teste **unitário** (sem containers) que valida:
 - Coleta pelo `MetricsCollectorService.getCurrentMetrics()` retorna as novas métricas
 - Persistência pelo `MetricsCollectorService.collect()` + `DashboardStorageService` salva e recupera
 
-#### [NEW] [TopologyContextScriptTest.java](file:///home/lucas/Projects/n-gate/src/test/java/dev/nishisan/ngate/observability/TopologyContextScriptTest.java)
+#### [NEW] [TopologyContextScriptTest.java](file:///home/lucas/Projects/ishin-gateway/src/test/java/dev/nishisan/ishin/observability/TopologyContextScriptTest.java)
 
 Teste **unitário** que valida:
 - Criar um `ServerConfiguration` com listeners contendo urlContexts com ruleMapping
 - Chamar `DashboardApiRoutes.buildTopology()` (via reflexão ou extraindo o método para testável)
 - Verificar que nodes contêm itens com `type: "context"` e `type: "script"`
-- Verificar que edges contêm `listener → context`, `context → ngate`, `context → script`
+- Verificar que edges contêm `listener → context`, `context → ishin`, `context → script`
 - Verificar que nodes existentes (`gateway`, `listener`, `backend`) permanecem inalterados
 
 ---
@@ -137,10 +137,10 @@ Teste **unitário** que valida:
 
 ```bash
 # Executar todos os testes do módulo
-cd /home/lucas/Projects/n-gate && mvn test -pl .
+cd /home/lucas/Projects/ishin-gateway && mvn test -pl .
 
 # Executar apenas os novos testes
-cd /home/lucas/Projects/n-gate && mvn test -Dtest="ContextScriptMetricsTest,TopologyContextScriptTest"
+cd /home/lucas/Projects/ishin-gateway && mvn test -Dtest="ContextScriptMetricsTest,TopologyContextScriptTest"
 ```
 
 ### Checklist Manual
@@ -149,13 +149,13 @@ Após deploy em ambiente local ou staging, validar com `curl`:
 
 ```bash
 # 1. Novas métricas visíveis em /metrics/names
-curl http://localhost:<dashboard-port>/api/v1/metrics/names | jq '.[] | select(startswith("ngate.context") or startswith("ngate.script"))'
+curl http://localhost:<dashboard-port>/api/v1/metrics/names | jq '.[] | select(startswith("ishin.context") or startswith("ishin.script"))'
 
 # 2. Métricas com tags em /metrics/current
-curl http://localhost:<dashboard-port>/api/v1/metrics/current | jq 'to_entries[] | select(.key | startswith("ngate.context") or startswith("ngate.script"))'
+curl http://localhost:<dashboard-port>/api/v1/metrics/current | jq 'to_entries[] | select(.key | startswith("ishin.context") or startswith("ishin.script"))'
 
 # 3. Histórico funcional
-curl "http://localhost:<dashboard-port>/api/v1/metrics/history?name=ngate.context.duration.mean"
+curl "http://localhost:<dashboard-port>/api/v1/metrics/history?name=ishin.context.duration.mean"
 
 # 4. Topologia enriquecida
 curl http://localhost:<dashboard-port>/api/v1/topology | jq '.nodes[] | select(.type == "context" or .type == "script")'
@@ -170,12 +170,12 @@ curl http://localhost:<dashboard-port>/api/v1/topology | jq '.nodes[] | select(.
 
 | Métrica | Tipo | Tags | Deriváveis |
 |---|---|---|---|
-| `ngate.context.requests.total` | Counter | `listener`, `context`, `method`, `status` | req/s por contexto |
-| `ngate.context.duration` | Timer | `listener`, `context`, `method` | avg/min/max latência por contexto |
-| `ngate.context.errors` | Counter | `listener`, `context`, `method` | error rate por contexto |
-| `ngate.script.executions.total` | Counter | `listener`, `context`, `script` | exec/s por script |
-| `ngate.script.duration` | Timer | `listener`, `context`, `script` | avg/min/max execução do script |
-| `ngate.script.errors` | Counter | `listener`, `context`, `script` | error rate por script |
+| `ishin.context.requests.total` | Counter | `listener`, `context`, `method`, `status` | req/s por contexto |
+| `ishin.context.duration` | Timer | `listener`, `context`, `method` | avg/min/max latência por contexto |
+| `ishin.context.errors` | Counter | `listener`, `context`, `method` | error rate por contexto |
+| `ishin.script.executions.total` | Counter | `listener`, `context`, `script` | exec/s por script |
+| `ishin.script.duration` | Timer | `listener`, `context`, `script` | avg/min/max execução do script |
+| `ishin.script.errors` | Counter | `listener`, `context`, `script` | error rate por script |
 
 > [!NOTE]
 > O collector expande Timers automaticamente em `.count`, `.mean` e `.max`, todos persistidos no H2/RRD com consolidação multi-tier (raw 6h → 5min 7d → 10min 30d → 1hour 365d).

@@ -1,14 +1,14 @@
-# n-gate — Product Overview
+# ishin-gateway — Product Overview
 
 > API Gateway & Reverse Proxy programável de alta performance para ambientes Java 21, com motor de regras Groovy, upstream pools com active & passive health check, circuit breaker, rate limiting, CLI operacional, cluster mode e observabilidade nativa.
 
 ---
 
-## Por que n-gate?
+## Por que ishin-gateway?
 
-O n-gate nasceu da necessidade de um gateway HTTP que fosse **programável em runtime**, **observável por padrão** e **escalável horizontalmente** — sem sacrificar a simplicidade de configuração de um proxy reverso tradicional.
+O ishin-gateway nasceu da necessidade de um gateway HTTP que fosse **programável em runtime**, **observável por padrão** e **escalável horizontalmente** — sem sacrificar a simplicidade de configuração de um proxy reverso tradicional.
 
-| Problema                        | Como o n-gate resolve                                                          |
+| Problema                        | Como o ishin-gateway resolve                                                          |
 |---------------------------------|--------------------------------------------------------------------------------|
 | Roteamento estático             | Scripts Groovy com hot-reload decidem o destino em runtime                     |
 | Backends frágeis                | Circuit breaker por backend + Upstream Pool com health check ativo             |
@@ -17,7 +17,7 @@ O n-gate nasceu da necessidade de um gateway HTTP que fosse **programável em ru
 | Falta de visibilidade           | 13 spans semânticos por request (Zipkin/Brave) + métricas Prometheus           |
 | Autenticação complexa           | JWT validation na entrada + OAuth2 token injection transparente no upstream    |
 | Overhead de proxy               | Streaming zero-copy, Virtual Threads (Java 21) e connection pooling otimizado  |
-| Operação de rules complexa      | CLI dedicado (`ngate-cli`) + Admin API REST para deploy, listagem e versionamento |
+| Operação de rules complexa      | CLI dedicado (`ishin-cli`) + Admin API REST para deploy, listagem e versionamento |
 
 ---
 
@@ -25,7 +25,7 @@ O n-gate nasceu da necessidade de um gateway HTTP que fosse **programável em ru
 
 ### Proxy Reverso & Roteamento
 
-O n-gate recebe requests HTTP e os encaminha para backends upstream. O roteamento é configurável em dois níveis:
+O ishin-gateway recebe requests HTTP e os encaminha para backends upstream. O roteamento é configurável em dois níveis:
 
 - **Declarativo** — `defaultBackend` por listener via `adapter.yaml`
 - **Programático** — scripts Groovy que podem alterar backend, headers, path e body em runtime
@@ -91,7 +91,7 @@ backends:
 
 #### Passive Health Check
 
-Além do health check ativo (probes periódicos), o n-gate monitora as **respostas reais do tráfego de produção** para detectar membros degradados. Opera de forma independente do active health check.
+Além do health check ativo (probes periódicos), o ishin-gateway monitora as **respostas reais do tráfego de produção** para detectar membros degradados. Opera de forma independente do active health check.
 
 ```yaml
 backends:
@@ -195,21 +195,21 @@ backends:
 
 Duas dimensões independentes:
 
-**Inbound (Cliente → n-gate):** Validação JWT via JWKS com decoders built-in ou customizados (Groovy).
+**Inbound (Cliente → ishin-gateway):** Validação JWT via JWKS com decoders built-in ou customizados (Groovy).
 
 ```yaml
 listeners:
   api:
     secured: true
     secureProvider:
-      providerClass: "dev.nishisan.ngate.auth.jwt.JWTTokenDecoder"
+      providerClass: "dev.nishisan.ishin.auth.jwt.JWTTokenDecoder"
       name: "keycloak-jwt"
       options:
         issuerUri: http://keycloak:8080/realms/my-realm
         jwkSetUri: http://keycloak:8080/realms/my-realm/protocol/openid-connect/certs
 ```
 
-**Outbound (n-gate → Backend):** Injeção automática de Bearer token via OAuth2 com cache, refresh e renovação proativa.
+**Outbound (ishin-gateway → Backend):** Injeção automática de Bearer token via OAuth2 com cache, refresh e renovação proativa.
 
 ```yaml
 backends:
@@ -246,7 +246,7 @@ def method = context.method().name()
 
 if (path.startsWith("/api/v2/")) {
     upstreamRequest.setBackend("api-v2")
-    upstreamRequest.addHeader("X-Gateway-Version", "n-gate")
+    upstreamRequest.addHeader("X-Gateway-Version", "ishin-gateway")
 } else if (path == "/api/status" && method == "GET") {
     def synth = workload.createSynthResponse()
     synth.setContent('{"status":"operational","version":"3.0"}')
@@ -258,7 +258,7 @@ if (path.startsWith("/api/v2/")) {
 ```groovy
 // Exemplo: headers no response + cookies + segurança via Response Processor
 def addResponseHeaders = { wl ->
-    wl.clientResponse.addHeader("X-Powered-By", "n-gate")
+    wl.clientResponse.addHeader("X-Powered-By", "ishin-gateway")
     wl.clientResponse.addHeader("X-Content-Type-Options", "nosniff")
     wl.clientResponse.addHeader("Strict-Transport-Security", "max-age=31536000")
     wl.clientResponse.addHeader("Set-Cookie",
@@ -285,7 +285,7 @@ Para a API completa e mais 12 exemplos práticos, veja [Regras Groovy](groovy_ru
 
 ### Admin API & CLI
 
-O n-gate expõe uma **Admin API REST** protegida por API Key para operações de gerenciamento de rules, e um **CLI dedicado** (`ngate-cli`) instalado via pacote `.deb`.
+O ishin-gateway expõe uma **Admin API REST** protegida por API Key para operações de gerenciamento de rules, e um **CLI dedicado** (`ishin-cli`) instalado via pacote `.deb`.
 
 #### Endpoints
 
@@ -295,25 +295,25 @@ O n-gate expõe uma **Admin API REST** protegida por API Key para operações de
 | `/admin/rules/version` | GET | Versão do bundle ativo |
 | `/admin/rules/list` | GET | Lista scripts do bundle com nome e tamanho |
 
-#### CLI — `ngate-cli`
+#### CLI — `ishin-cli`
 
 ```bash
 # Deploy de rules a partir de um diretório
-ngate-cli deploy /etc/n-gate/rules
+ishin-cli deploy /etc/ishin-gateway/rules
 
 # Listar scripts do bundle ativo
-ngate-cli list
+ishin-cli list
 
 # Consultar versão do bundle ativo
-ngate-cli version
+ishin-cli version
 ```
 
-Configuração via variáveis de ambiente ou `/etc/n-gate/cli.conf`:
+Configuração via variáveis de ambiente ou `/etc/ishin-gateway/cli.conf`:
 
 | Variável | Default | Descrição |
 |----------|---------|-----------|
-| `NGATE_ADMIN_URL` | `http://localhost:9190` | URL base da Admin API |
-| `NGATE_API_KEY` | — | Chave de autenticação (obrigatória) |
+| `ISHIN_ADMIN_URL` | `http://localhost:9190` | URL base da Admin API |
+| `ISHIN_API_KEY` | — | Chave de autenticação (obrigatória) |
 
 **Rules Materialization:** Scripts deployados via Admin API são materializados em disco no diretório `rulesBasePath` (não mais em temp dirs), garantindo persistência e auditabilidade. Em cluster mode, o deploy é replicado automaticamente via `DistributedMap`.
 
@@ -332,17 +332,17 @@ cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-cluster"
+  clusterName: "ishin-cluster"
   seeds:
-    - "ngate-node1:7100"
-    - "ngate-node2:7100"
-    - "ngate-node3:7100"
+    - "ishin-node1:7100"
+    - "ishin-node2:7100"
+    - "ishin-node3:7100"
   replicationFactor: 2
 ```
 
 ```
 ┌──────────┐   ┌──────────┐   ┌──────────┐
-│ n-gate-1 │◄─►│ n-gate-2 │◄─►│ n-gate-3 │
+│ ishin-gateway-1 │◄─►│ ishin-gateway-2 │◄─►│ ishin-gateway-3 │
 │  :9091   │   │  :9091   │   │  :9091   │
 │  :7100   │   │  :7100   │   │  :7100   │
 └────┬─────┘   └────┬─────┘   └────┬─────┘
@@ -383,12 +383,12 @@ Endpoint `/actuator/prometheus` (porta 9190) com:
 
 | Métrica | Descrição |
 |---------|-----------|
-| `ngate.requests.total` | Requests inbound por listener/método/status |
-| `ngate.request.duration` | Latência inbound (ms) |
-| `ngate.upstream.requests` | Requests upstream por backend/método/status |
-| `ngate.upstream.duration` | Latência upstream (ms) |
-| `ngate.ratelimit.total` | Eventos de rate limiting |
-| `ngate.cluster.active.members` | Membros ativos no cluster |
+| `ishin.requests.total` | Requests inbound por listener/método/status |
+| `ishin.request.duration` | Latência inbound (ms) |
+| `ishin.upstream.requests` | Requests upstream por backend/método/status |
+| `ishin.upstream.duration` | Latência upstream (ms) |
+| `ishin.ratelimit.total` | Eventos de rate limiting |
+| `ishin.cluster.active.members` | Membros ativos no cluster |
 | `resilience4j.circuitbreaker.*` | Estado e métricas do circuit breaker |
 
 ---
@@ -478,7 +478,7 @@ endpoints:
         defaultBackend: "core-api"
         secured: true
         secureProvider:
-          providerClass: "dev.nishisan.ngate.auth.jwt.JWTTokenDecoder"
+          providerClass: "dev.nishisan.ishin.auth.jwt.JWTTokenDecoder"
           name: "keycloak"
           options:
             issuerUri: http://keycloak:8080/realms/prod
@@ -630,11 +630,11 @@ cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-cluster"
+  clusterName: "ishin-cluster"
   seeds:
-    - "ngate-node1:7100"
-    - "ngate-node2:7100"
-    - "ngate-node3:7100"
+    - "ishin-node1:7100"
+    - "ishin-node2:7100"
+    - "ishin-node3:7100"
   replicationFactor: 2
   dataDirectory: "/data/ngrid"
 
@@ -651,7 +651,7 @@ circuitBreaker:
 
 ```bash
 # Deploy de rules para todo o cluster (basta enviar para 1 nó)
-curl -X POST http://ngate-node1:9190/admin/rules/deploy \
+curl -X POST http://ishin-node1:9190/admin/rules/deploy \
   -H "X-API-Key: my-production-api-key" \
   -F "scripts=@rules/default/Rules.groovy"
 ```
@@ -660,7 +660,7 @@ curl -X POST http://ngate-node1:9190/admin/rules/deploy \
 
 ## Performance
 
-O n-gate é otimizado para baixa latência no hot path:
+O ishin-gateway é otimizado para baixa latência no hot path:
 
 | Característica | Detalhe |
 |----------------|---------|

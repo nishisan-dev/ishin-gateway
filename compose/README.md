@@ -2,7 +2,7 @@
 
 This repository now uses a single local development stack with:
 
-- `n-gate`
+- `ishin-gateway`
 - `keycloak`
 - `zipkin`
 
@@ -28,8 +28,8 @@ curl -i http://localhost:9090/realms/inventory-dev/protocol/openid-connect/useri
 
 The adapter obtains a token from Keycloak using:
 
-- client id: `n-gate-client`
-- client secret: `n-gate-secret`
+- client id: `ishin-gateway-client`
+- client secret: `ishin-gateway-secret`
 - username: `inventory-svc`
 - password: `inventory-svc-pass`
 

@@ -1,11 +1,11 @@
 # Testes de Integração: Cluster Mode NGrid com Testcontainers
 
-Validar o comportamento do cluster mode n-gate (NGrid mesh, leader election, token sharing via DistributedMap) com 2 nós reais rodando em containers Docker, usando Testcontainers + JUnit 5.
+Validar o comportamento do cluster mode ishin-gateway (NGrid mesh, leader election, token sharing via DistributedMap) com 2 nós reais rodando em containers Docker, usando Testcontainers + JUnit 5.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Abordagem de build da imagem**: O projeto não possui um `Dockerfile` standalone — hoje o build é feito diretamente via `maven:3.9.9-eclipse-temurin-21` no docker-compose. O plano propõe criar um `Dockerfile` multi-stage dedicado para o n-gate, que será usado tanto nos testes (via `ImageFromDockerfile`) quanto como artefato reutilizável do projeto.
+> **Abordagem de build da imagem**: O projeto não possui um `Dockerfile` standalone — hoje o build é feito diretamente via `maven:3.9.9-eclipse-temurin-21` no docker-compose. O plano propõe criar um `Dockerfile` multi-stage dedicado para o ishin-gateway, que será usado tanto nos testes (via `ImageFromDockerfile`) quanto como artefato reutilizável do projeto.
 
 > [!WARNING]
 > **GitHub Packages auth**: O `pom.xml` depende de `dev.nishisan:nishi-utils:3.1.0` publicado no GitHub Packages. O build do Docker Image precisa do `settings.xml` com credenciais. O plano injeta este arquivo via build context usando o `~/.m2/settings.xml` existente.
@@ -19,9 +19,9 @@ Validar o comportamento do cluster mode n-gate (NGrid mesh, leader election, tok
 
 ### Dockerfile
 
-#### [NEW] [Dockerfile](file:///home/lucas/Projects/n-gate/Dockerfile)
+#### [NEW] [Dockerfile](file:///home/lucas/Projects/ishin-gateway/Dockerfile)
 
-Multi-stage Dockerfile para build e execução do n-gate:
+Multi-stage Dockerfile para build e execução do ishin-gateway:
 
 ```dockerfile
 # Stage 1: Build
@@ -37,20 +37,20 @@ RUN mvn -s /tmp/settings.xml -DskipTests clean package -q
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=builder /build/target/n-gate-1.0-SNAPSHOT.jar app.jar
+COPY --from=builder /build/target/ishin-gateway-1.0-SNAPSHOT.jar app.jar
 COPY rules/ rules/
 EXPOSE 9091 9190 7100
 ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:+ZGenerational", "-Xms128m", "-Xmx256m", "-jar", "app.jar"]
 ```
 
 - O `settings.xml` é copiado apenas no stage de build (não vaza para a imagem runtime).
-- As `rules/` são copiadas pois o n-gate carrega scripts Groovy do filesystem.
+- As `rules/` são copiadas pois o ishin-gateway carrega scripts Groovy do filesystem.
 
 ---
 
 ### Dependências Maven
 
-#### [MODIFY] [pom.xml](file:///home/lucas/Projects/n-gate/pom.xml)
+#### [MODIFY] [pom.xml](file:///home/lucas/Projects/ishin-gateway/pom.xml)
 
 Adicionar dependências de teste:
 
@@ -86,7 +86,7 @@ Adicionar dependências de teste:
 
 ### Configuração de Teste
 
-#### [NEW] [adapter-test-cluster.yaml](file:///home/lucas/Projects/n-gate/src/test/resources/adapter-test-cluster.yaml)
+#### [NEW] [adapter-test-cluster.yaml](file:///home/lucas/Projects/ishin-gateway/src/test/resources/adapter-test-cluster.yaml)
 
 Configuração mínima para os testes — sem OAuth, sem Keycloak, usando apenas o listener `http-noauth` apontando para um backend mock:
 
@@ -127,13 +127,13 @@ cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-test-cluster"
+  clusterName: "ishin-test-cluster"
   seeds: []    # <-- Preenchido dinamicamente no código do teste
   replicationFactor: 2
   dataDirectory: "/tmp/ngrid-test-data"
 ```
 
-#### [NEW] [application-test.properties](file:///home/lucas/Projects/n-gate/src/test/resources/application-test.properties)
+#### [NEW] [application-test.properties](file:///home/lucas/Projects/ishin-gateway/src/test/resources/application-test.properties)
 
 ```properties
 spring.profiles.active=test
@@ -148,25 +148,25 @@ debug=false
 
 ### Classe de Teste
 
-#### [NEW] [NGridClusterIntegrationTest.java](file:///home/lucas/Projects/n-gate/src/test/java/dev/nishisan/ngate/cluster/NGridClusterIntegrationTest.java)
+#### [NEW] [NGridClusterIntegrationTest.java](file:///home/lucas/Projects/ishin-gateway/src/test/java/dev/nishisan/ishin/cluster/NGridClusterIntegrationTest.java)
 
 Classe JUnit 5 + Testcontainers com os seguintes cenários:
 
 ```
-Pacote: dev.nishisan.ngate.cluster
+Pacote: dev.nishisan.ishin.cluster
 ```
 
 **Setup da infra (containers efêmeros):**
 
 1. **Network**: `Network.newNetwork()` — rede Docker isolada para os 3 containers
 2. **Backend mock**: `GenericContainer<>("nginx:alpine")` com volume de config que retorna `HTTP 200 OK` no `/*` + `/health`
-3. **Nó 1 (n-gate)**: `ImageFromDockerfile` buildando o `Dockerfile` com o settings.xml. Env vars:
-   - `NGATE_CONFIG=/app/config/adapter-test-cluster.yaml` (injetado via `withClasspathResourceMapping`)
-   - `NGATE_CLUSTER_NODE_ID=node-1`
+3. **Nó 1 (ishin-gateway)**: `ImageFromDockerfile` buildando o `Dockerfile` com o settings.xml. Env vars:
+   - `ISHIN_CONFIG=/app/config/adapter-test-cluster.yaml` (injetado via `withClasspathResourceMapping`)
+   - `ISHIN_CLUSTER_NODE_ID=node-1`
    - `SPRING_PROFILES_DEFAULT=test`
-   - Network alias: `ngate-node1`
-4. **Nó 2 (n-gate)**: Mesma imagem, `NGATE_CLUSTER_NODE_ID=node-2`, alias `ngate-node2`
-5. **Seeds dinâmicos**: O `adapter-test-cluster.yaml` terá seeds fixos `["ngate-node1:7100", "ngate-node2:7100"]`, usando os network aliases do Docker (similar ao compose cluster existente)
+   - Network alias: `ishin-node1`
+4. **Nó 2 (ishin-gateway)**: Mesma imagem, `ISHIN_CLUSTER_NODE_ID=node-2`, alias `ishin-node2`
+5. **Seeds dinâmicos**: O `adapter-test-cluster.yaml` terá seeds fixos `["ishin-node1:7100", "ishin-node2:7100"]`, usando os network aliases do Docker (similar ao compose cluster existente)
 
 **Cenários de teste:**
 
@@ -186,7 +186,7 @@ Pacote: dev.nishisan.ngate.cluster
 
 ### Nginx Config para Backend Mock
 
-#### [NEW] [default.conf](file:///home/lucas/Projects/n-gate/src/test/resources/testcontainers/mock-backend.conf)
+#### [NEW] [default.conf](file:///home/lucas/Projects/ishin-gateway/src/test/resources/testcontainers/mock-backend.conf)
 
 Config Nginx mínima para o backend mock:
 
@@ -211,7 +211,7 @@ server {
 
 **Execução dos testes:**
 ```bash
-cd /home/lucas/Projects/n-gate
+cd /home/lucas/Projects/ishin-gateway
 mvn -s ~/.m2/settings.xml test -Dtest="NGridClusterIntegrationTest" -pl . 2>&1 | tail -50
 ```
 
@@ -222,7 +222,7 @@ mvn -s ~/.m2/settings.xml test -Dtest="NGridClusterIntegrationTest" -pl . 2>&1 |
 
 **Verificação de build limpo:**
 ```bash
-cd /home/lucas/Projects/n-gate
+cd /home/lucas/Projects/ishin-gateway
 mvn -s ~/.m2/settings.xml clean compile -DskipTests
 ```
 
@@ -236,11 +236,11 @@ mvn -s ~/.m2/settings.xml clean compile -DskipTests
 ## Estrutura final de arquivos novos
 
 ```
-n-gate/
+ishin-gateway/
 ├── Dockerfile                                           [NEW]
 ├── pom.xml                                              [MOD] +3 deps test
 └── src/test/
-    ├── java/dev/nishisan/ngate/cluster/
+    ├── java/dev/nishisan/ishin/cluster/
     │   └── NGridClusterIntegrationTest.java             [NEW]
     └── resources/
         ├── adapter-test-cluster.yaml                    [NEW]

@@ -1,12 +1,12 @@
-# n-gate — Video Script Prompt
+# ishin-gateway — Video Script Prompt
 
-> Prompt para geração de vídeo promocional/demonstrativo do projeto n-gate.
+> Prompt para geração de vídeo promocional/demonstrativo do projeto ishin-gateway.
 
 ---
 
 ## Prompt Principal
 
-Crie um vídeo de **2 a 3 minutos** estilo **tech product showcase** para o **n-gate** — um API Gateway & Reverse Proxy de alta performance construído em Java 21. O vídeo deve transmitir **confiabilidade, velocidade e controle total** sobre o tráfego HTTP. Tom visual: **dark mode**, tipografia moderna (Inter/JetBrains Mono), cores predominantes em **azul-elétrico e ciano** com acentos em **laranja** para destaques. Estilo de motion graphics minimalista e técnico, similar a vídeos de produto da Cloudflare, Datadog ou HashiCorp.
+Crie um vídeo de **2 a 3 minutos** estilo **tech product showcase** para o **ishin-gateway** — um API Gateway & Reverse Proxy de alta performance construído em Java 21. O vídeo deve transmitir **confiabilidade, velocidade e controle total** sobre o tráfego HTTP. Tom visual: **dark mode**, tipografia moderna (Inter/JetBrains Mono), cores predominantes em **azul-elétrico e ciano** com acentos em **laranja** para destaques. Estilo de motion graphics minimalista e técnico, similar a vídeos de produto da Cloudflare, Datadog ou HashiCorp.
 
 ---
 
@@ -14,7 +14,7 @@ Crie um vídeo de **2 a 3 minutos** estilo **tech product showcase** para o **n-
 
 ### Cena 1 — Hook (0:00–0:10)
 
-**Visual:** Tela escura. Aparecem linhas de request HTTP animadas fluindo da esquerda para a direita, passando por um ícone central do n-gate que as distribui para múltiplos backends.
+**Visual:** Tela escura. Aparecem linhas de request HTTP animadas fluindo da esquerda para a direita, passando por um ícone central do ishin-gateway que as distribui para múltiplos backends.
 
 **Texto em tela:**
 > "Your traffic. Your rules. Zero compromise."
@@ -26,10 +26,10 @@ Crie um vídeo de **2 a 3 minutos** estilo **tech product showcase** para o **n-
 
 ### Cena 2 — O que é (0:10–0:25)
 
-**Visual:** Logo do n-gate com tagline animada. Badges de tecnologia aparecem ao redor: Java 21, Virtual Threads, Groovy, NGrid.
+**Visual:** Logo do ishin-gateway com tagline animada. Badges de tecnologia aparecem ao redor: Java 21, Virtual Threads, Groovy, NGrid.
 
 **Texto em tela:**
-> **n-gate** — Programmable API Gateway & Reverse Proxy  
+> **ishin-gateway** — Programmable API Gateway & Reverse Proxy  
 > Built on Java 21 · Virtual Threads · Javalin 7 · Jetty 12
 
 **Pontos-chave (aparecem em sequência):**
@@ -105,18 +105,18 @@ Crie um vídeo de **2 a 3 minutos** estilo **tech product showcase** para o **n-
 
 ### Cena 7 — Cluster Mode & Operação (1:55–2:20)
 
-**Visual:** 3 nós n-gate conectados via mesh NGrid. Um operador executa `ngate-cli deploy` — uma onda de sincronização percorre os 3 nós simultaneamente.
+**Visual:** 3 nós ishin-gateway conectados via mesh NGrid. Um operador executa `ishin-cli deploy` — uma onda de sincronização percorre os 3 nós simultaneamente.
 
 **Conceitos demonstrados:**
 - **NGrid mesh TCP** — Leader election com epoch fencing
 - **Token sharing (POW-RBL)** — Tokens OAuth2 compartilhados entre nós
 - **Rules deploy atômico** — Um nó recebe, todos sincronizam via DistributedMap
-- **ngate-cli** — CLI operacional: `deploy`, `list`, `version`
+- **ishin-cli** — CLI operacional: `deploy`, `list`, `version`
 - **Rules Materialization** — Scripts persistidos em disco, não em temp dirs
 
 **Texto em tela:**
 > Cluster mode. Deploy atômico. Um comando, todos os nós sincronizados.  
-> `ngate-cli deploy /etc/n-gate/rules`
+> `ishin-cli deploy /etc/ishin-gateway/rules`
 
 ---
 
@@ -141,11 +141,11 @@ Crie um vídeo de **2 a 3 minutos** estilo **tech product showcase** para o **n-
 **Visual:** Tela escura com logo centralizado. Tech stack badges (Java 21, Spring Boot 3.5, Javalin 7, NGrid, Resilience4j, Brave/Zipkin) aparecem ao redor do logo. Badges de empacotamento (.deb, Docker, systemd).
 
 **Texto em tela:**
-> **n-gate**  
+> **ishin-gateway**  
 > Programmable. Observable. Resilient.  
 > Java 21 · Open Source · Production Ready  
 >  
-> ⭐ github.com/nishisan-dev/n-gate
+> ⭐ github.com/nishisan-dev/ishin-gateway
 
 ---
 

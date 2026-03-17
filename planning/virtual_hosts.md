@@ -2,7 +2,7 @@
 
 ## Contexto
 
-Atualmente o n-gate resolve o backend de destino na seguinte ordem:
+Atualmente o ishin-gateway resolve o backend de destino na seguinte ordem:
 1. **Groovy rules** (`workload.getRequest().setBackend(...)`) — se o script define o backend
 2. **`defaultBackend`** do listener — fallback quando nenhum script define
 
@@ -37,7 +37,7 @@ listeners:
 
 ### Componente 1 — Modelo de Configuração
 
-#### [MODIFY] [EndPointListenersConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/EndPointListenersConfiguration.java)
+#### [MODIFY] [EndPointListenersConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/EndPointListenersConfiguration.java)
 
 Adicionar campo:
 
@@ -51,7 +51,7 @@ Com getter/setter. Jackson desserializa automaticamente do YAML.
 
 ### Componente 2 — Virtual Host Resolver
 
-#### [NEW] [VirtualHostResolver.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/VirtualHostResolver.java)
+#### [NEW] [VirtualHostResolver.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/VirtualHostResolver.java)
 
 Classe responsável por resolver o hostname contra o mapa de virtual hosts:
 
@@ -79,7 +79,7 @@ Lógica:
 
 ### Componente 3 — Integração no Pipeline de Request
 
-#### [MODIFY] [HttpProxyManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/HttpProxyManager.java)
+#### [MODIFY] [HttpProxyManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/HttpProxyManager.java)
 
 No método `handleRequest()`, na seção de resolução de backend (~linhas 538-553), adicionar a checagem de virtual hosts **entre** o check do Groovy rules e o `defaultBackend`:
 
@@ -104,7 +104,7 @@ No método `handleRequest()`, na seção de resolução de backend (~linhas 538-
  }
 ```
 
-#### [MODIFY] [EndpointWrapper.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/EndpointWrapper.java)
+#### [MODIFY] [EndpointWrapper.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/EndpointWrapper.java)
 
 Adicionar tag de tracing `vhost.match` no span quando virtual host resolver encontra match. Isso dá visibilidade no Zipkin de qual vhost foi selecionado.
 
@@ -112,7 +112,7 @@ Adicionar tag de tracing `vhost.match` no span quando virtual host resolver enco
 
 ### Componente 4 — Observabilidade
 
-#### [MODIFY] [EndpointWrapper.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/EndpointWrapper.java)
+#### [MODIFY] [EndpointWrapper.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/EndpointWrapper.java)
 
 Adicionar tag `http.host` no root span com o valor do header `Host`, se presente:
 
@@ -124,7 +124,7 @@ rootSpan.tag("http.host", ctx.header("Host"));
 
 ### Componente 5 — Documentação
 
-#### [MODIFY] [configuration.md](file:///home/lucas/Projects/n-gate/docs/configuration.md)
+#### [MODIFY] [configuration.md](file:///home/lucas/Projects/ishin-gateway/docs/configuration.md)
 
 Adicionar campo `virtualHosts` na tabela de campos do listener e seção dedicada com exemplos.
 

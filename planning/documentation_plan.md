@@ -1,8 +1,8 @@
-# Plano de Documentação — n-gate
+# Plano de Documentação — ishin-gateway
 
 ## Contexto
 
-O **n-gate** é um API Gateway/Reverse Proxy de alta performance construído em **Java 21** com **Javalin 7** (Jetty 12), **OkHttp 4** e um motor de regras dinâmicas em **Groovy 3**. Possui observabilidade integrada via **Brave/Zipkin**, autenticação OAuth2/JWT, e logging assíncrono via **LMAX Disruptor**.
+O **ishin-gateway** é um API Gateway/Reverse Proxy de alta performance construído em **Java 21** com **Javalin 7** (Jetty 12), **OkHttp 4** e um motor de regras dinâmicas em **Groovy 3**. Possui observabilidade integrada via **Brave/Zipkin**, autenticação OAuth2/JWT, e logging assíncrono via **LMAX Disruptor**.
 
 O `README.md` atual cobre apenas o setup do ambiente Docker local. Falta documentação de:
 - Arquitetura e fluxo interno
@@ -18,12 +18,12 @@ O `README.md` atual cobre apenas o setup do ambiente Docker local. Falta documen
 
 ### 1. README.md (Reescrita)
 
-#### [MODIFY] [README.md](file:///home/lucas/Projects/n-gate/README.md)
+#### [MODIFY] [README.md](file:///home/lucas/Projects/ishin-gateway/README.md)
 
 Transformar de um guia "Dev Local" para documentação principal do projeto:
 
 - **Header**: Nome, descrição concisa, badges (Java 21, License GPL-3.0)
-- **O que é o n-gate**: Parágrafo curto posicionando o projeto
+- **O que é o ishin-gateway**: Parágrafo curto posicionando o projeto
 - **Features**: Lista das capacidades-chave
 - **Arquitetura em alto nível**: Diagrama PlantUML inline + breve explicação
 - **Quick Start**: O setup Docker atual (preservado, revisado)
@@ -35,7 +35,7 @@ Transformar de um guia "Dev Local" para documentação principal do projeto:
 
 ### 2. Guia de Arquitetura
 
-#### [NEW] [architecture.md](file:///home/lucas/Projects/n-gate/docs/architecture.md)
+#### [NEW] [architecture.md](file:///home/lucas/Projects/ishin-gateway/docs/architecture.md)
 
 - Visão geral da arquitetura (componentes principais)
 - Fluxo de um request (listener → regras → upstream → response)
@@ -48,7 +48,7 @@ Transformar de um guia "Dev Local" para documentação principal do projeto:
 
 ### 3. Referência de Configuração
 
-#### [NEW] [configuration.md](file:///home/lucas/Projects/n-gate/docs/configuration.md)
+#### [NEW] [configuration.md](file:///home/lucas/Projects/ishin-gateway/docs/configuration.md)
 
 Documentar **todas** as chaves do `adapter.yaml` com:
 - Descrição, tipo, valor padrão
@@ -57,7 +57,7 @@ Documentar **todas** as chaves do `adapter.yaml` com:
   - `endpoints.default.backends` — Configuração de backends
   - `oauthClientConfig` — Credenciais e tokens
   - Tuning: `jettyMinThreads`, `connectionPoolSize`, `dispatcherMaxRequests`, etc.
-- Variáveis de ambiente suportadas (`NGATE_CONFIG`, `ZIPKIN_ENDPOINT`, `TRACING_ENABLED`, `SPRING_PROFILES_DEFAULT`)
+- Variáveis de ambiente suportadas (`ISHIN_CONFIG`, `ZIPKIN_ENDPOINT`, `TRACING_ENABLED`, `SPRING_PROFILES_DEFAULT`)
 - Exemplo mínimo completo
 - Exemplo avançado com múltiplos listeners, SSL e múltiplos backends
 
@@ -65,7 +65,7 @@ Documentar **todas** as chaves do `adapter.yaml` com:
 
 ### 4. Guia de Regras Groovy
 
-#### [NEW] [groovy_rules.md](file:///home/lucas/Projects/n-gate/docs/groovy_rules.md)
+#### [NEW] [groovy_rules.md](file:///home/lucas/Projects/ishin-gateway/docs/groovy_rules.md)
 
 - Como funciona o motor de regras (GroovyScriptEngine, recompilação de 60s)
 - Variáveis disponíveis no binding: `workload`, `context`, `utils`, `upstreamRequest`, `listener`, `contextName`
@@ -84,9 +84,9 @@ Documentar **todas** as chaves do `adapter.yaml` com:
 
 ### 5. Documentação de Segurança e Políticas
 
-#### [NEW] [security.md](file:///home/lucas/Projects/n-gate/docs/security.md)
+#### [NEW] [security.md](file:///home/lucas/Projects/ishin-gateway/docs/security.md)
 
-- Modelo de segurança do n-gate (camadas de autenticação)
+- Modelo de segurança do ishin-gateway (camadas de autenticação)
 - Configuração de endpoints secured vs não-secured
 - JWT Token Decoder (built-in `JWTTokenDecoder`)
   - Configuração do `secureProvider` no `adapter.yaml`
@@ -95,7 +95,7 @@ Documentar **todas** as chaves do `adapter.yaml` com:
 - Custom Token Decoder via Groovy (`CustomClosureDecoder`)
   - Exemplo de script Groovy para decodificação customizada
 - OAuth2 Client Credentials (interceptor OkHttp)
-  - Como o n-gate injeta tokens automaticamente nos backends
+  - Como o ishin-gateway injeta tokens automaticamente nos backends
   - `useRefreshToken`, `renewBeforeSecs`, `authScopes`
 - Políticas de segurança por urlContext (granularidade fina)
 - Mascaramento de tokens sensíveis nos logs
@@ -105,7 +105,7 @@ Documentar **todas** as chaves do `adapter.yaml` com:
 
 ### 6. Casos de Uso
 
-#### [NEW] [use_cases.md](file:///home/lucas/Projects/n-gate/docs/use_cases.md)
+#### [NEW] [use_cases.md](file:///home/lucas/Projects/ishin-gateway/docs/use_cases.md)
 
 Cenários end-to-end com snippets de configuração:
 
@@ -127,23 +127,23 @@ Cada caso inclui:
 
 ### 7. Atualização da Observabilidade
 
-#### [MODIFY] [observability.md](file:///home/lucas/Projects/n-gate/docs/observability.md)
+#### [MODIFY] [observability.md](file:///home/lucas/Projects/ishin-gateway/docs/observability.md)
 
-- Substituir menções a "Inventory Adapter" por "n-gate"
+- Substituir menções a "Inventory Adapter" por "ishin-gateway"
 - Revisar consistência com a nomenclatura atual
 
 ---
 
 ### 8. Diagramas PlantUML
 
-#### [NEW] [architecture.puml](file:///home/lucas/Projects/n-gate/docs/diagrams/architecture.puml)
+#### [NEW] [architecture.puml](file:///home/lucas/Projects/ishin-gateway/docs/diagrams/architecture.puml)
 
 Diagrama C4 Container mostrando:
-- Clients → n-gate (Javalin/Jetty) → Backends
+- Clients → ishin-gateway (Javalin/Jetty) → Backends
 - Zipkin, Keycloak como componentes auxiliares
 - Groovy Rules Engine como componente interno
 
-#### [NEW] [request_flow.puml](file:///home/lucas/Projects/n-gate/docs/diagrams/request_flow.puml)
+#### [NEW] [request_flow.puml](file:///home/lucas/Projects/ishin-gateway/docs/diagrams/request_flow.puml)
 
 Diagrama de Sequência do fluxo completo:
 - Client → Listener → Token Decoder → Rules Engine → Upstream (OkHttp) → Response Adapter → Client

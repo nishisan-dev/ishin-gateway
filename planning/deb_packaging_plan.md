@@ -1,18 +1,18 @@
-# Empacotamento .deb do n-gate com GitHub Actions
+# Empacotamento .deb do ishin-gateway com GitHub Actions
 
-Empacotar o n-gate como `.deb` para distribuição Linux, com pipeline de CI/CD no GitHub Actions acionado por releases. O pacote segue o FHS e instala o gateway como um serviço systemd.
+Empacotar o ishin-gateway como `.deb` para distribuição Linux, com pipeline de CI/CD no GitHub Actions acionado por releases. O pacote segue o FHS e instala o gateway como um serviço systemd.
 
 ## Layout FHS do Pacote
 
 | Path instalado | Conteúdo |
 |---|---|
-| `/opt/n-gate/n-gate.jar` | Fat JAR (Spring Boot) |
-| `/etc/n-gate/adapter.yaml` | Configuração principal |
-| `/etc/n-gate/rules/default/Rules.groovy` | Scripts de regras Groovy (exemplo) |
-| `/etc/n-gate/ssl/` | Keystores (vazio — user popula) |
-| `/var/log/n-gate/` | Logs da aplicação |
-| `/lib/systemd/system/n-gate.service` | Unit file systemd |
-| `/etc/logrotate.d/n-gate` | Rotação de logs |
+| `/opt/ishin-gateway/ishin-gateway.jar` | Fat JAR (Spring Boot) |
+| `/etc/ishin-gateway/adapter.yaml` | Configuração principal |
+| `/etc/ishin-gateway/rules/default/Rules.groovy` | Scripts de regras Groovy (exemplo) |
+| `/etc/ishin-gateway/ssl/` | Keystores (vazio — user popula) |
+| `/var/log/ishin-gateway/` | Logs da aplicação |
+| `/lib/systemd/system/ishin-gateway.service` | Unit file systemd |
+| `/etc/logrotate.d/ishin-gateway` | Rotação de logs |
 
 ---
 
@@ -21,14 +21,14 @@ Empacotar o n-gate como `.deb` para distribuição Linux, com pipeline de CI/CD 
 ### Git Remote
 
 #### [NEW] Remote GitHub
-- Adicionar remote `origin` → `git@github.com:nishisan-dev/n-gate.git`
+- Adicionar remote `origin` → `git@github.com:nishisan-dev/ishin-gateway.git`
 - Push da branch `main`
 
 ---
 
 ### Packaging Assets
 
-#### [NEW] [debian/](file:///home/lucas/Projects/n-gate/debian/)
+#### [NEW] [debian/](file:///home/lucas/Projects/ishin-gateway/debian/)
 
 Criar a estrutura Debian control dentro do projeto:
 
@@ -39,8 +39,8 @@ debian/
 ├── postinst             # Script pós-instalação (cria user, dirs, enable service)
 ├── prerm                # Script pré-remoção (stop service)
 ├── postrm               # Script pós-remoção (cleanup)
-├── n-gate.service       # Systemd unit file
-├── n-gate.logrotate     # Logrotate config
+├── ishin-gateway.service       # Systemd unit file
+├── ishin-gateway.logrotate     # Logrotate config
 └── rules/
     └── default/
         └── Rules.groovy # Exemplo de regra padrão
@@ -48,22 +48,22 @@ debian/
 
 **`debian/control`** — Metadados principais:
 ```
-Package: n-gate
+Package: ishin-gateway
 Version: 1.0.0
 Architecture: all
 Maintainer: Lucas Nishimura <lucas.nishimura@gmail.com>
 Depends: default-jre-headless (>= 21) | openjdk-21-jre-headless
 Section: net
 Priority: optional
-Description: n-gate API Gateway
+Description: ishin-gateway API Gateway
  High-performance reverse proxy and API gateway with
  Groovy-based dynamic routing rules and OAuth2 support.
 ```
 
 **`debian/conffiles`**:
 ```
-/etc/n-gate/adapter.yaml
-/etc/n-gate/rules/default/Rules.groovy
+/etc/ishin-gateway/adapter.yaml
+/etc/ishin-gateway/rules/default/Rules.groovy
 ```
 
 **`debian/postinst`**:
@@ -71,47 +71,47 @@ Description: n-gate API Gateway
 #!/bin/bash
 set -e
 # Cria user de sistema
-if ! id -u n-gate >/dev/null 2>&1; then
-    useradd --system --no-create-home --shell /usr/sbin/nologin n-gate
+if ! id -u ishin-gateway >/dev/null 2>&1; then
+    useradd --system --no-create-home --shell /usr/sbin/nologin ishin-gateway
 fi
 # Cria dirs de runtime
-mkdir -p /var/log/n-gate
-mkdir -p /etc/n-gate/ssl
-chown -R n-gate:n-gate /var/log/n-gate
-chown -R n-gate:n-gate /etc/n-gate/ssl
+mkdir -p /var/log/ishin-gateway
+mkdir -p /etc/ishin-gateway/ssl
+chown -R ishin-gateway:ishin-gateway /var/log/ishin-gateway
+chown -R ishin-gateway:ishin-gateway /etc/ishin-gateway/ssl
 # Habilita e inicia o serviço
 systemctl daemon-reload
-systemctl enable n-gate.service
+systemctl enable ishin-gateway.service
 ```
 
 **`debian/prerm`**:
 ```bash
 #!/bin/bash
 set -e
-systemctl stop n-gate.service || true
-systemctl disable n-gate.service || true
+systemctl stop ishin-gateway.service || true
+systemctl disable ishin-gateway.service || true
 ```
 
-**`debian/n-gate.service`**:
+**`debian/ishin-gateway.service`**:
 ```ini
 [Unit]
-Description=n-gate API Gateway
+Description=ishin-gateway API Gateway
 After=network.target
 
 [Service]
 Type=simple
-User=n-gate
-Group=n-gate
-WorkingDirectory=/etc/n-gate
+User=ishin-gateway
+Group=ishin-gateway
+WorkingDirectory=/etc/ishin-gateway
 ExecStart=/usr/bin/java \
-    -jar /opt/n-gate/n-gate.jar \
-    -Dlog4j.configurationFile=/etc/n-gate/log4j2.xml
+    -jar /opt/ishin-gateway/ishin-gateway.jar \
+    -Dlog4j.configurationFile=/etc/ishin-gateway/log4j2.xml
 Restart=on-failure
 RestartSec=10
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/var/log/n-gate
-ReadOnlyPaths=/etc/n-gate /opt/n-gate
+ReadWritePaths=/var/log/ishin-gateway
+ReadOnlyPaths=/etc/ishin-gateway /opt/ishin-gateway
 
 [Install]
 WantedBy=multi-user.target
@@ -121,7 +121,7 @@ WantedBy=multi-user.target
 
 ### GitHub Actions Pipeline
 
-#### [NEW] [release.yml](file:///home/lucas/Projects/n-gate/.github/workflows/release.yml)
+#### [NEW] [release.yml](file:///home/lucas/Projects/ishin-gateway/.github/workflows/release.yml)
 
 Pipeline acionado por `release: [published]`. Etapas:
 
@@ -148,22 +148,22 @@ jobs:
       - name: Build .deb
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          PKG="n-gate_${VERSION}_all"
+          PKG="ishin-gateway_${VERSION}_all"
           # Montar árvore FHS
-          mkdir -p "${PKG}/opt/n-gate"
-          mkdir -p "${PKG}/etc/n-gate/rules/default"
-          mkdir -p "${PKG}/etc/n-gate/ssl"
-          mkdir -p "${PKG}/var/log/n-gate"
+          mkdir -p "${PKG}/opt/ishin-gateway"
+          mkdir -p "${PKG}/etc/ishin-gateway/rules/default"
+          mkdir -p "${PKG}/etc/ishin-gateway/ssl"
+          mkdir -p "${PKG}/var/log/ishin-gateway"
           mkdir -p "${PKG}/lib/systemd/system"
           mkdir -p "${PKG}/etc/logrotate.d"
           mkdir -p "${PKG}/DEBIAN"
           # Copiar artefatos
-          cp target/n-gate-*.jar "${PKG}/opt/n-gate/n-gate.jar"
-          cp config/adapter.yaml "${PKG}/etc/n-gate/"
-          cp debian/rules/default/Rules.groovy "${PKG}/etc/n-gate/rules/default/"
-          cp src/main/resources/log4j2.xml "${PKG}/etc/n-gate/"
-          cp debian/n-gate.service "${PKG}/lib/systemd/system/"
-          cp debian/n-gate.logrotate "${PKG}/etc/logrotate.d/n-gate"
+          cp target/ishin-gateway-*.jar "${PKG}/opt/ishin-gateway/ishin-gateway.jar"
+          cp config/adapter.yaml "${PKG}/etc/ishin-gateway/"
+          cp debian/rules/default/Rules.groovy "${PKG}/etc/ishin-gateway/rules/default/"
+          cp src/main/resources/log4j2.xml "${PKG}/etc/ishin-gateway/"
+          cp debian/ishin-gateway.service "${PKG}/lib/systemd/system/"
+          cp debian/ishin-gateway.logrotate "${PKG}/etc/logrotate.d/ishin-gateway"
           # Control files
           sed "s/^Version:.*/Version: ${VERSION}/" debian/control > "${PKG}/DEBIAN/control"
           cp debian/conffiles "${PKG}/DEBIAN/"
@@ -177,7 +177,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          gh release upload "${GITHUB_REF_NAME}" "n-gate_${VERSION}_all.deb"
+          gh release upload "${GITHUB_REF_NAME}" "ishin-gateway_${VERSION}_all.deb"
 ```
 
 ---
@@ -186,7 +186,7 @@ jobs:
 
 O path das rules será configurável diretamente no `adapter.yaml` via campo `rulesBasePath`, mantendo toda a configuração centralizada. Default: `"rules"` (compatível com dev).
 
-#### [MODIFY] [EndPointConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/EndPointConfiguration.java)
+#### [MODIFY] [EndPointConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/EndPointConfiguration.java)
 
 Adicionar campo `rulesBasePath` com getter/setter:
 
@@ -196,7 +196,7 @@ Adicionar campo `rulesBasePath` com getter/setter:
 + private String rulesBasePath = "rules";
 ```
 
-#### [MODIFY] [HttpProxyManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/http/HttpProxyManager.java)
+#### [MODIFY] [HttpProxyManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/http/HttpProxyManager.java)
 
 Alterar `initGse()` para ler o path da configuração:
 
@@ -217,7 +217,7 @@ No `adapter.yaml` de produção (empacotado no `.deb`):
 ```yaml
 endpoints:
   default:
-    rulesBasePath: "/etc/n-gate/rules"
+    rulesBasePath: "/etc/ishin-gateway/rules"
 ```
 
 ---
@@ -236,15 +236,15 @@ endpoints:
 2. **Pipeline end-to-end:**
    - Criar release `v1.0.0` via `gh release create v1.0.0 --title "v1.0.0" --notes "Initial .deb release"`
    - Verificar no GitHub Actions que o job `build-deb` executa com sucesso
-   - Verificar que o asset `n-gate_1.0.0_all.deb` aparece na release
+   - Verificar que o asset `ishin-gateway_1.0.0_all.deb` aparece na release
 
 ### Manual Verification (Pós Pipeline)
 
 1. Baixar o `.deb` gerado da release
-2. Instalar com `sudo dpkg -i n-gate_*.deb`
+2. Instalar com `sudo dpkg -i ishin-gateway_*.deb`
 3. Verificar que:
-   - `/opt/n-gate/n-gate.jar` existe
-   - `/etc/n-gate/adapter.yaml` existe
-   - `/etc/n-gate/rules/default/Rules.groovy` existe
-   - `/var/log/n-gate/` existe com owner `n-gate`
-   - `systemctl status n-gate` mostra o serviço como `loaded`
+   - `/opt/ishin-gateway/ishin-gateway.jar` existe
+   - `/etc/ishin-gateway/adapter.yaml` existe
+   - `/etc/ishin-gateway/rules/default/Rules.groovy` existe
+   - `/var/log/ishin-gateway/` existe com owner `ishin-gateway`
+   - `systemctl status ishin-gateway` mostra o serviço como `loaded`

@@ -5,7 +5,7 @@ Implementar o **Tunnel Mode** conforme `planning/tunnel_mode_spec.md`. O tunnel 
 ## User Review Required
 
 > [!IMPORTANT]
-> O processo n-gate passa a ter dois modos mutuamente exclusivos (`proxy` / `tunnel`), controlado pelo campo `mode` no `adapter.yaml`. O default será `proxy` para retrocompatibilidade total.
+> O processo ishin-gateway passa a ter dois modos mutuamente exclusivos (`proxy` / `tunnel`), controlado pelo campo `mode` no `adapter.yaml`. O default será `proxy` para retrocompatibilidade total.
 
 > [!IMPORTANT]
 > O tunnel engine usa `java.nio.channels.ServerSocketChannel` com Virtual Threads (Java 21) para o pipe TCP — não usa Javalin nem Jetty. Isso mantém o hot-path leve e sem overhead HTTP.
@@ -18,12 +18,12 @@ Implementar o **Tunnel Mode** conforme `planning/tunnel_mode_spec.md`. O tunnel 
 
 Adicionar suporte ao campo `mode` e blocos `tunnel` no modelo de configuração.
 
-#### [MODIFY] [ServerConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/ServerConfiguration.java)
+#### [MODIFY] [ServerConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/ServerConfiguration.java)
 
 - Adicionar campo `String mode = "proxy"` com getter/setter
 - Adicionar campo `TunnelConfiguration tunnel` com getter/setter
 
-#### [NEW] [TunnelConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/TunnelConfiguration.java)
+#### [NEW] [TunnelConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/TunnelConfiguration.java)
 
 Config do nó tunnel:
 ```java
@@ -37,7 +37,7 @@ public class TunnelConfiguration {
 }
 ```
 
-#### [NEW] [TunnelRegistrationConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/TunnelRegistrationConfiguration.java)
+#### [NEW] [TunnelRegistrationConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/TunnelRegistrationConfiguration.java)
 
 Config do registro do proxy no tunnel:
 ```java
@@ -49,7 +49,7 @@ public class TunnelRegistrationConfiguration {
 }
 ```
 
-#### [MODIFY] [EndPointListenersConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/EndPointListenersConfiguration.java)
+#### [MODIFY] [EndPointListenersConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/EndPointListenersConfiguration.java)
 
 - Adicionar campo `Integer virtualPort` com getter/setter (nullable — quando null, inferido de `listenPort`)
 
@@ -59,7 +59,7 @@ public class TunnelRegistrationConfiguration {
 
 O proxy publica seu registro no NGrid `DistributedMap` e mantém keepalive periódico.
 
-#### [NEW] [TunnelRegistryEntry.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/TunnelRegistryEntry.java)
+#### [NEW] [TunnelRegistryEntry.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/TunnelRegistryEntry.java)
 
 DTO `Serializable` publicado pelo proxy no NMap:
 ```java
@@ -84,7 +84,7 @@ public static class ListenerRegistration implements Serializable {
 }
 ```
 
-#### [NEW] [TunnelRegistrationService.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/TunnelRegistrationService.java)
+#### [NEW] [TunnelRegistrationService.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/TunnelRegistrationService.java)
 
 Spring `@Service` ativo apenas se `mode=proxy` e `tunnel.registration.enabled=true`:
 - `@Order(25)` (entre ClusterService e EndpointManager)
@@ -98,7 +98,7 @@ Spring `@Service` ativo apenas se `mode=proxy` e `tunnel.registration.enabled=tr
 
 O coração do tunnel mode — abre listeners TCP dinâmicos e roteia para backends registrados.
 
-#### [NEW] [VirtualPortGroup.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/VirtualPortGroup.java)
+#### [NEW] [VirtualPortGroup.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/VirtualPortGroup.java)
 
 Pool de membros para uma porta virtual:
 - `ConcurrentHashMap<String, BackendMember>` (key: `nodeId:realPort`)
@@ -106,7 +106,7 @@ Pool de membros para uma porta virtual:
 - Track de `activeConnections` por membro (AtomicInteger)
 - Métodos: `addMember`, `removeMember`, `getActiveMembers`, `getNextMember`
 
-#### [NEW] [BackendMember.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/BackendMember.java)
+#### [NEW] [BackendMember.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/BackendMember.java)
 
 Representa um membro do pool:
 ```java
@@ -123,7 +123,7 @@ public class BackendMember {
 }
 ```
 
-#### [NEW] [TunnelLoadBalancer.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/TunnelLoadBalancer.java)
+#### [NEW] [TunnelLoadBalancer.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/TunnelLoadBalancer.java)
 
 Interface:
 ```java
@@ -132,19 +132,19 @@ public interface TunnelLoadBalancer {
 }
 ```
 
-#### [NEW] [RoundRobinBalancer.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/lb/RoundRobinBalancer.java)
+#### [NEW] [RoundRobinBalancer.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/lb/RoundRobinBalancer.java)
 
 AtomicInteger counter + modulo.
 
-#### [NEW] [LeastConnectionsBalancer.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/lb/LeastConnectionsBalancer.java)
+#### [NEW] [LeastConnectionsBalancer.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/lb/LeastConnectionsBalancer.java)
 
 Min por `activeConnections`.
 
-#### [NEW] [WeightedRoundRobinBalancer.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/lb/WeightedRoundRobinBalancer.java)
+#### [NEW] [WeightedRoundRobinBalancer.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/lb/WeightedRoundRobinBalancer.java)
 
 Smooth Weighted Round-Robin (SWRR).
 
-#### [NEW] [TunnelRegistry.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/TunnelRegistry.java)
+#### [NEW] [TunnelRegistry.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/TunnelRegistry.java)
 
 Observa o NGrid NMap e mantém `ConcurrentHashMap<Integer, VirtualPortGroup>`:
 - Polling periódico do NMap (a cada 1s) para detectar mudanças
@@ -152,7 +152,7 @@ Observa o NGrid NMap e mantém `ConcurrentHashMap<Integer, VirtualPortGroup>`:
 - Keepalive timeout checker: remove membros com `lastKeepAlive` expirado
 - Promoção automática de STANDBY quando zero ACTIVE
 
-#### [NEW] [TunnelEngine.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/TunnelEngine.java)
+#### [NEW] [TunnelEngine.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/TunnelEngine.java)
 
 Core do pipe TCP:
 - Gerencia `ServerSocketChannel` por virtual port (dynamic open/close)
@@ -162,7 +162,7 @@ Core do pipe TCP:
 - IOException handling conforme spec (Camada 1)
 - Métricas por conexão
 
-#### [NEW] [TunnelService.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/TunnelService.java)
+#### [NEW] [TunnelService.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/TunnelService.java)
 
 Spring `@Service` — orquestrador do tunnel mode:
 - `@Order(30)` — mesmo slot do `EndpointManager`
@@ -184,14 +184,14 @@ Implementada dentro de `TunnelEngine` e `TunnelRegistry`:
 
 ### Componente 5: Observabilidade
 
-#### [NEW] [TunnelMetrics.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/tunnel/TunnelMetrics.java)
+#### [NEW] [TunnelMetrics.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/tunnel/TunnelMetrics.java)
 
 Spring `@Component` — métricas Prometheus via Micrometer seguindo o padrão de `ProxyMetrics`:
-- Counters: `ngate_tunnel_connections_total`, `ngate_tunnel_bytes_sent_total`, `ngate_tunnel_bytes_received_total`, `ngate_tunnel_connect_errors_total`, `ngate_tunnel_pool_removals_total`, `ngate_tunnel_standby_promotions_total`
-- Gauges: `ngate_tunnel_connections_active`, `ngate_tunnel_pool_members`, `ngate_tunnel_keepalive_age_seconds`, `ngate_tunnel_listener_ports_active`
-- Histograms: `ngate_tunnel_session_duration_seconds`, `ngate_tunnel_connect_duration_seconds`
+- Counters: `ishin_tunnel_connections_total`, `ishin_tunnel_bytes_sent_total`, `ishin_tunnel_bytes_received_total`, `ishin_tunnel_connect_errors_total`, `ishin_tunnel_pool_removals_total`, `ishin_tunnel_standby_promotions_total`
+- Gauges: `ishin_tunnel_connections_active`, `ishin_tunnel_pool_members`, `ishin_tunnel_keepalive_age_seconds`, `ishin_tunnel_listener_ports_active`
+- Histograms: `ishin_tunnel_session_duration_seconds`, `ishin_tunnel_connect_duration_seconds`
 
-#### [MODIFY] [NGateHealthIndicator.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/health/NGateHealthIndicator.java)
+#### [MODIFY] [IshinGatewayHealthIndicator.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/health/IshinGatewayHealthIndicator.java)
 
 - Reportar `mode: tunnel` quando em tunnel mode
 - Adicionar `tunnelListeners` (portas virtuais ativas) e `tunnelPoolSize` (total de backends)
@@ -200,11 +200,11 @@ Spring `@Component` — métricas Prometheus via Micrometer seguindo o padrão d
 
 ### Componente 6: Integração & Boot Condicional
 
-#### [MODIFY] [EndpointManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/manager/EndpointManager.java)
+#### [MODIFY] [EndpointManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/manager/EndpointManager.java)
 
 - No `onStartup()`, verificar se `mode=proxy`. Se `mode=tunnel`, retornar sem inicializar endpoints Javalin.
 
-#### [MODIFY] [ConfigurationManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/manager/ConfigurationManager.java)
+#### [MODIFY] [ConfigurationManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/manager/ConfigurationManager.java)
 
 - No `onStartup()`, se `mode=tunnel`, não iterar `endpoints` para OAuth/Circuit Breaker/Rate Limit.
 

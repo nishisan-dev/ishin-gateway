@@ -50,9 +50,9 @@ cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
-  clusterName: "ngate-rules-test-cluster"
+  clusterName: "ishin-rules-test-cluster"
   seeds:
-    - "ngate-rules-node1:7100"
-    - "ngate-rules-node2:7100"
+    - "ishin-rules-node1:7100"
+    - "ishin-rules-node2:7100"
   replicationFactor: 2
   dataDirectory: "/tmp/ngrid-rules-test-data"

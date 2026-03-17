@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-O n-gate suporta um modo cluster opcional via [NGrid](https://github.com/nishisan-dev/nishi-utils), permitindo múltiplas instâncias coordenarem estado distribuído (tokens OAuth, leader election, health). Os testes de integração validam este comportamento com **2 nós reais** rodando em containers Docker efêmeros.
+O ishin-gateway suporta um modo cluster opcional via [NGrid](https://github.com/nishisan-dev/nishi-utils), permitindo múltiplas instâncias coordenarem estado distribuído (tokens OAuth, leader election, health). Os testes de integração validam este comportamento com **2 nós reais** rodando em containers Docker efêmeros.
 
 ## Stack de Teste
 
@@ -62,8 +62,8 @@ O n-gate suporta um modo cluster opcional via [NGrid](https://github.com/nishisa
               └──────────────────────────────┘
 ```
 
-- **N1/N2**: Instâncias n-gate com cluster mode + OAuth habilitados
-- **Keycloak**: IdP com realm `inventory-dev`, client `ngate-client`
+- **N1/N2**: Instâncias ishin-gateway com cluster mode + OAuth habilitados
+- **Keycloak**: IdP com realm `inventory-dev`, client `ishin-client`
 - **DistMap (tokens)**: `DistributedMap<String, SerializableTokenData>` do NGrid
 
 ## Cenários de Teste
@@ -96,7 +96,7 @@ O n-gate suporta um modo cluster opcional via [NGrid](https://github.com/nishisa
 1. **Docker** rodando (versão ≥ 20.10, testado com 29.3.0)
 2. **`~/.m2/settings.xml`** com credenciais do GitHub Packages (para resolver `nishi-utils`)
 3. **Portas livres**: nenhuma porta fixa necessária (Testcontainers usa portas dinâmicas)
-4. **Espaço em disco**: ~500MB para imagens Docker (n-gate, Nginx, Keycloak, Ryuk)
+4. **Espaço em disco**: ~500MB para imagens Docker (ishin-gateway, Nginx, Keycloak, Ryuk)
 
 ### Comandos
 
@@ -117,7 +117,7 @@ mvn -s ~/.m2/settings.xml test -Dtest="NGridCluster*IntegrationTest" \
   -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 ```
 
-> **Nota:** Na primeira execução, o Docker buildará a imagem n-gate via Dockerfile multi-stage (~2-3 min). Execuções subsequentes usam cache (~20s de build).
+> **Nota:** Na primeira execução, o Docker buildará a imagem ishin-gateway via Dockerfile multi-stage (~2-3 min). Execuções subsequentes usam cache (~20s de build).
 
 ### Interpretando os Logs
 
@@ -125,10 +125,10 @@ Os logs dos containers são prefixados para fácil identificação:
 
 | Prefixo | Container |
 |---------|-----------|
-| `[node-1]` | n-gate Nó 1 (cluster básico) |
-| `[node-2]` | n-gate Nó 2 (cluster básico) |
-| `[oauth-node-1]` | n-gate Nó 1 (cluster OAuth) |
-| `[oauth-node-2]` | n-gate Nó 2 (cluster OAuth) |
+| `[node-1]` | ishin-gateway Nó 1 (cluster básico) |
+| `[node-2]` | ishin-gateway Nó 2 (cluster básico) |
+| `[oauth-node-1]` | ishin-gateway Nó 1 (cluster OAuth) |
+| `[oauth-node-2]` | ishin-gateway Nó 2 (cluster OAuth) |
 | `[keycloak]` | Keycloak IdP |
 
 **Mensagens-chave nos logs:**
@@ -187,9 +187,9 @@ Se os testes OAuth falham no startup do Keycloak:
 
 | Arquivo | Propósito |
 |---|---|
-| [NGridClusterIntegrationTest.java](../src/test/java/dev/nishisan/ngate/cluster/NGridClusterIntegrationTest.java) | Testes T1-T5 (cluster básico) |
-| [NGridClusterOAuthIntegrationTest.java](../src/test/java/dev/nishisan/ngate/cluster/NGridClusterOAuthIntegrationTest.java) | Testes T6-T7 (OAuth token sharing) |
-| [Dockerfile](../Dockerfile) | Build multi-stage da imagem n-gate |
+| [NGridClusterIntegrationTest.java](../src/test/java/dev/nishisan/ishin/cluster/NGridClusterIntegrationTest.java) | Testes T1-T5 (cluster básico) |
+| [NGridClusterOAuthIntegrationTest.java](../src/test/java/dev/nishisan/ishin/cluster/NGridClusterOAuthIntegrationTest.java) | Testes T6-T7 (OAuth token sharing) |
+| [Dockerfile](../Dockerfile) | Build multi-stage da imagem ishin-gateway |
 | [adapter-test-cluster.yaml](../src/test/resources/adapter-test-cluster.yaml) | Config cluster sem OAuth |
 | [adapter-test-cluster-oauth.yaml](../src/test/resources/adapter-test-cluster-oauth.yaml) | Config cluster com OAuth + Keycloak |
 | [application-test.properties](../src/test/resources/application-test.properties) | Profile Spring Boot para testes |

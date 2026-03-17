@@ -1,6 +1,6 @@
 # Fase 2 — NGrid Cluster Mode (Escalabilidade Horizontal)
 
-Habilitar o n-gate para rodar em modo cluster, onde N instâncias compartilham estado via NGrid mesh TCP (sem dependências externas como Redis/etcd). O foco desta sessão é a **integração base do NGrid** e o **compartilhamento de tokens OAuth** — o rules deploy ficará para uma sessão dedicada.
+Habilitar o ishin-gateway para rodar em modo cluster, onde N instâncias compartilham estado via NGrid mesh TCP (sem dependências externas como Redis/etcd). O foco desta sessão é a **integração base do NGrid** e o **compartilhamento de tokens OAuth** — o rules deploy ficará para uma sessão dedicada.
 
 ## User Review Required
 
@@ -11,7 +11,7 @@ Habilitar o n-gate para rodar em modo cluster, onde N instâncias compartilham e
 > A dependência `dev.nishisan:nishi-utils:3.1.0` está publicada no GitHub Packages (`maven.pkg.github.com/nishisan-dev/nishi-utils`). O repositório Maven do GitHub Packages já deve estar configurado no `settings.xml` local.
 
 > [!WARNING]
-> O modo cluster é **opt-in**. Sem o bloco `cluster:` no `adapter.yaml`, o n-gate roda exatamente como antes (standalone puro). Não há fallback — se cluster está configurado, ele obrigatoriamente tenta formar o mesh.
+> O modo cluster é **opt-in**. Sem o bloco `cluster:` no `adapter.yaml`, o ishin-gateway roda exatamente como antes (standalone puro). Não há fallback — se cluster está configurado, ele obrigatoriamente tenta formar o mesh.
 
 ---
 
@@ -19,7 +19,7 @@ Habilitar o n-gate para rodar em modo cluster, onde N instâncias compartilham e
 
 ### Componente 1: Dependência Maven
 
-#### [MODIFY] [pom.xml](file:///home/lucas/Projects/n-gate/pom.xml)
+#### [MODIFY] [pom.xml](file:///home/lucas/Projects/ishin-gateway/pom.xml)
 
 Adicionar dependência do `nishi-utils` (NGrid, DistributedMap):
 
@@ -35,7 +35,7 @@ Adicionar dependência do `nishi-utils` (NGrid, DistributedMap):
 
 ### Componente 2: Configuração do Cluster
 
-#### [NEW] [ClusterConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/ClusterConfiguration.java)
+#### [NEW] [ClusterConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/ClusterConfiguration.java)
 
 POJO Jackson para mapear o novo bloco `cluster:` do `adapter.yaml`:
 
@@ -45,20 +45,20 @@ public class ClusterConfiguration {
     private String nodeId;           // ID do nó (default: hostname)
     private String host;             // Bind host para o NGrid (default: 0.0.0.0)
     private int port = 7100;         // Porta TCP do mesh NGrid
-    private String clusterName = "ngate-cluster";
+    private String clusterName = "ishin-cluster";
     private List<String> seeds;      // Ex: ["10.0.0.1:7100", "10.0.0.2:7100"]
     private int replicationFactor = 2;
     private String dataDirectory = "./data/ngrid";  // Dir para WAL/snapshots
 }
 ```
 
-Compatível com env vars: `${NGATE_CLUSTER_NODE_ID:hostname}`, `${NGATE_CLUSTER_PORT:7100}`, `${NGATE_CLUSTER_SEEDS:}`.
+Compatível com env vars: `${ISHIN_CLUSTER_NODE_ID:hostname}`, `${ISHIN_CLUSTER_PORT:7100}`, `${ISHIN_CLUSTER_SEEDS:}`.
 
-#### [MODIFY] [ServerConfiguration.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/configuration/ServerConfiguration.java)
+#### [MODIFY] [ServerConfiguration.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/configuration/ServerConfiguration.java)
 
 Adicionar campo `ClusterConfiguration cluster` (nullable, opt-in).
 
-#### [MODIFY] [adapter.yaml](file:///home/lucas/Projects/n-gate/config/adapter.yaml)
+#### [MODIFY] [adapter.yaml](file:///home/lucas/Projects/ishin-gateway/config/adapter.yaml)
 
 Adicionar bloco `cluster:` **comentado** como exemplo:
 
@@ -67,10 +67,10 @@ Adicionar bloco `cluster:` **comentado** como exemplo:
 # Descomente para habilitar cluster mode
 # cluster:
 #   enabled: true
-#   nodeId: "ngate-1"
+#   nodeId: "ishin-1"
 #   host: "0.0.0.0"
 #   port: 7100
-#   clusterName: "ngate-cluster"
+#   clusterName: "ishin-cluster"
 #   seeds:
 #     - "10.0.0.2:7100"
 #     - "10.0.0.3:7100"
@@ -82,7 +82,7 @@ Adicionar bloco `cluster:` **comentado** como exemplo:
 
 ### Componente 3: ClusterService (NGridNode Lifecycle)
 
-#### [NEW] [ClusterService.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/cluster/ClusterService.java)
+#### [NEW] [ClusterService.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/cluster/ClusterService.java)
 
 Spring `@Service` que gerencia o ciclo de vida do `NGridNode`:
 
@@ -103,7 +103,7 @@ NGridConfig.Builder builder = NGridConfig.builder(local)
     .replicationFactor(config.getReplicationFactor())
     .heartbeatInterval(Duration.ofMillis(500))
     .leaseTimeout(Duration.ofSeconds(5))
-    .mapName("ngate-tokens");   // mapa default para tokens
+    .mapName("ishin-tokens");   // mapa default para tokens
 
 // Adicionar peers a partir dos seeds
 for (String seed : config.getSeeds()) {
@@ -117,14 +117,14 @@ for (String seed : config.getSeeds()) {
 
 ### Componente 4: Compartilhamento de Tokens OAuth
 
-#### [MODIFY] [AuthToken.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/auth/wrapper/AuthToken.java)
+#### [MODIFY] [AuthToken.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/auth/wrapper/AuthToken.java)
 
 - Implementar `java.io.Serializable` + `serialVersionUID`
 - O field `TokenResponse currentResponse` (Google OAuth lib) **não** implementa Serializable → criar `SerializableTokenData` record que captura os campos essenciais (accessToken, refreshToken, expiresInSeconds, tokenType, scope)
 - Substituir `TokenResponse` por `SerializableTokenData` nos campos replicados; manter `TokenResponse` como transient para uso local na API do Google
 - Substituir `OauthServerClientConfiguration` (que contém clientSecret etc. sensível) por `transient` — followers não precisam da config do SSO, apenas do token
 
-#### [NEW] [SerializableTokenData.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/auth/wrapper/SerializableTokenData.java)
+#### [NEW] [SerializableTokenData.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/auth/wrapper/SerializableTokenData.java)
 
 ```java
 public record SerializableTokenData(
@@ -139,7 +139,7 @@ public record SerializableTokenData(
 ) implements Serializable {}
 ```
 
-#### [MODIFY] [OAuthClientManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/auth/OAuthClientManager.java)
+#### [MODIFY] [OAuthClientManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/auth/OAuthClientManager.java)
 
 **Mudanças:**
 
@@ -157,7 +157,7 @@ public record SerializableTokenData(
 
 ### Componente 5: Health Check e Observabilidade
 
-#### [MODIFY] [NGateHealthIndicator.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/health/NGateHealthIndicator.java)
+#### [MODIFY] [IshinGatewayHealthIndicator.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/health/IshinGatewayHealthIndicator.java)
 
 Adicionar detalhes do cluster quando ativo:
 
@@ -173,7 +173,7 @@ if (clusterService.isClusterMode()) {
 
 ### Componente 6: Graceful Shutdown
 
-#### [MODIFY] [EndpointManager.java](file:///home/lucas/Projects/n-gate/src/main/java/dev/nishisan/ngate/manager/EndpointManager.java)
+#### [MODIFY] [EndpointManager.java](file:///home/lucas/Projects/ishin-gateway/src/main/java/dev/nishisan/ishin/manager/EndpointManager.java)
 
 O shutdown do `NGridNode` já será handled pelo `@PreDestroy` do `ClusterService` (ordem: Spring destrói beans em ordem inversa de criação). Nenhuma mudança necessária no `EndpointManager` — o `ClusterService.@PreDestroy` será adicionado internamente.
 
@@ -185,14 +185,14 @@ O shutdown do `NGridNode` já será handled pelo `@PreDestroy` do `ClusterServic
 
 **1. Compilação (build sanity):**
 ```bash
-cd /home/lucas/Projects/n-gate
+cd /home/lucas/Projects/ishin-gateway
 mvn clean compile -DskipTests
 ```
 Deve compilar sem erros.
 
 **2. Boot standalone (sem cluster):**
 ```bash
-cd /home/lucas/Projects/n-gate
+cd /home/lucas/Projects/ishin-gateway
 # Garantir que adapter.yaml NÃO tem cluster.enabled = true
 mvn spring-boot:run -Dspring-boot.run.profiles=dev 2>&1 | head -50
 ```

@@ -1,6 +1,6 @@
 # Observabilidade — Zipkin / Brave
 
-Documentação da camada de distributed tracing do n-gate.
+Documentação da camada de distributed tracing do ishin-gateway.
 
 ## Stack
 
@@ -12,7 +12,18 @@ Documentação da camada de distributed tracing do n-gate.
 | [Micrometer](https://micrometer.io/) | (Spring Boot BOM) | Métricas Prometheus (counters, timers, gauges) |
 | [Resilience4j](https://resilience4j.readme.io/) | 2.2.0 | Circuit breaker com métricas Micrometer |
 
-O endpoint do Zipkin collector é resolvido via variável de ambiente `ZIPKIN_URL` ou propriedade de sistema `zipkin.url`.
+O endpoint do Zipkin collector é resolvido via variável de ambiente `ZIPKIN_ENDPOINT` ou propriedade de sistema `zipkin.endpoint`.
+
+### Configuração de Tracing
+
+| Variável de Ambiente | System Property | Default | Descrição |
+|---------------------|-----------------|---------|-----------|
+| `ZIPKIN_ENDPOINT` | `zipkin.endpoint` | `http://zipkin:9411/api/v2/spans` | URL do Zipkin collector |
+| `TRACING_ENABLED` | — | `true` | Habilita/desabilita tracing completamente |
+| `TRACING_SAMPLE_RATE` | `tracing.sample.rate` | `1.0` | Taxa de amostragem (`0.0` a `1.0`) |
+
+> [!TIP]
+> Em produção, use `TRACING_SAMPLE_RATE=0.1` (10%) para reduzir overhead sem perder visibilidade. O valor `0.0` equivale a desabilitar tracing; `1.0` coleta 100% dos requests.
 
 ---
 
@@ -25,7 +36,7 @@ Cliente
   │
   ▼
 ┌─────────────────────────────────────────────────┐
-│ n-gate                                          │
+│ ishin-gateway                                          │
 │                                                 │
 │  rootSpan (SERVER) ← extracted from B3 headers  │
 │  ├── request-handler                            │
@@ -244,6 +255,11 @@ O adapter implementa propagação B3 bidirecional:
 
 Gerencia instâncias de `Tracing` e `Tracer` por service name. Cacheia instâncias via `ConcurrentHashMap`. O sender (`OkHttpSender`) e handler (`AsyncZipkinSpanHandler`) são inicializados uma única vez com double-checked locking.
 
+O **sample rate** é resolvido na criação de cada instância de `Tracing` com a seguinte precedência:
+1. Env `TRACING_SAMPLE_RATE` → 2. System property `tracing.sample.rate` → 3. Default `1.0`
+
+Valores fora do range `[0.0, 1.0]` são clampados automaticamente. Valores inválidos geram warning no log e usam o default `1.0`.
+
 ### `TracerWrapper`
 
 Wrapper sobre `Tracer` e `Tracing` que simplifica criação de spans. Métodos principais:
@@ -262,7 +278,7 @@ Wrapper sobre `Span` do Brave com API simplificada:
 
 ## Métricas Prometheus
 
-Além do distributed tracing, o n-gate exporta métricas operacionais via [Micrometer](https://micrometer.io/) no endpoint `/actuator/prometheus` (porta `9190`).
+Além do distributed tracing, o ishin-gateway exporta métricas operacionais via [Micrometer](https://micrometer.io/) no endpoint `/actuator/prometheus` (porta `9190`).
 
 ### Endpoint
 
@@ -274,24 +290,24 @@ curl http://localhost:9190/actuator/prometheus
 
 | Métrica | Tipo | Tags | Descrição |
 |---------|------|------|-----------|
-| `ngate.requests.total` | Counter | listener, method, status | Total de requests recebidos |
-| `ngate.request.duration` | Timer | listener, method | Latência e2e do request (ms) |
-| `ngate.request.errors` | Counter | listener, method | Erros internos (exceções) |
+| `ishin.requests.total` | Counter | listener, method, status | Total de requests recebidos |
+| `ishin.request.duration` | Timer | listener, method | Latência e2e do request (ms) |
+| `ishin.request.errors` | Counter | listener, method | Erros internos (exceções) |
 
 ### Métricas Upstream (por backend)
 
 | Métrica | Tipo | Tags | Descrição |
 |---------|------|------|-----------|
-| `ngate.upstream.requests` | Counter | backend, method, status | Total de requests ao backend |
-| `ngate.upstream.duration` | Timer | backend, method | Latência da chamada upstream (ms) |
-| `ngate.upstream.errors` | Counter | backend, method | Erros de I/O no upstream |
+| `ishin.upstream.requests` | Counter | backend, method, status | Total de requests ao backend |
+| `ishin.upstream.duration` | Timer | backend, method | Latência da chamada upstream (ms) |
+| `ishin.upstream.errors` | Counter | backend, method | Erros de I/O no upstream |
 
 ### Métricas Cluster (quando NGrid ativo)
 
 | Métrica | Tipo | Descrição |
 |---------|------|-----------|
-| `ngate.cluster.active.members` | Gauge | Número de membros ativos no mesh NGrid |
-| `ngate.cluster.is.leader` | Gauge | 1 se líder, 0 se follower |
+| `ishin.cluster.active.members` | Gauge | Número de membros ativos no mesh NGrid |
+| `ishin.cluster.is.leader` | Gauge | 1 se líder, 0 se follower |
 
 ---
 
@@ -329,7 +345,7 @@ Para configuração detalhada, veja [docs/configuration.md](configuration.md#cir
 
 ## Rate Limiting
 
-O n-gate implementa rate limiting granular em 3 escopos (listener, rota, backend), controlado via bloco `rateLimiting:` no `adapter.yaml`.
+O ishin-gateway implementa rate limiting granular em 3 escopos (listener, rota, backend), controlado via bloco `rateLimiting:` no `adapter.yaml`.
 
 ### Modos
 
@@ -351,8 +367,8 @@ O n-gate implementa rate limiting granular em 3 escopos (listener, rota, backend
 
 | Métrica | Tipo | Tags | Descrição |
 |---------|------|------|-----------|
-| `ngate.ratelimit.total` | Counter | scope, zone, result | Eventos de rate limiting (ALLOWED/REJECTED/DELAYED) |
-| `ngate.ratelimit.available_permits` | Gauge | key | Permits disponíveis por rate limiter |
+| `ishin.ratelimit.total` | Counter | scope, zone, result | Eventos de rate limiting (ALLOWED/REJECTED/DELAYED) |
+| `ishin.ratelimit.available_permits` | Gauge | key | Permits disponíveis por rate limiter |
 
 Para configuração detalhada, veja [docs/rate-limiting.md](rate-limiting.md) e [docs/configuration.md](configuration.md#rate-limiting).
 
@@ -360,38 +376,38 @@ Para configuração detalhada, veja [docs/rate-limiting.md](rate-limiting.md) e 
 
 ## Tunnel Mode
 
-Quando `mode: tunnel`, o n-gate expõe métricas TCP específicas via `TunnelMetrics`:
+Quando `mode: tunnel`, o ishin-gateway expõe métricas TCP específicas via `TunnelMetrics`:
 
 ### Métricas de Conexão
 
 | Métrica | Tipo | Tags | Descrição |
 |---------|------|------|-----------|
-| `ngate.tunnel.connections.total` | Counter | vport, member | Total de conexões TCP aceitas |
-| `ngate.tunnel.connections.active` | Gauge | vport, member | Conexões TCP ativas no momento |
-| `ngate.tunnel.session.duration` | Timer | vport, member | Duração da sessão TCP (ms) |
+| `ishin.tunnel.connections.total` | Counter | vport, member | Total de conexões TCP aceitas |
+| `ishin.tunnel.connections.active` | Gauge | vport, member | Conexões TCP ativas no momento |
+| `ishin.tunnel.session.duration` | Timer | vport, member | Duração da sessão TCP (ms) |
 
 ### Métricas de Throughput
 
 | Métrica | Tipo | Tags | Descrição |
 |---------|------|------|-----------|
-| `ngate.tunnel.bytes.sent` | Counter | vport, member | Bytes enviados (client → backend) |
-| `ngate.tunnel.bytes.received` | Counter | vport, member | Bytes recebidos (backend → client) |
+| `ishin.tunnel.bytes.sent` | Counter | vport, member | Bytes enviados (client → backend) |
+| `ishin.tunnel.bytes.received` | Counter | vport, member | Bytes recebidos (backend → client) |
 
 ### Métricas de Erro
 
 | Métrica | Tipo | Tags | Descrição |
 |---------|------|------|-----------|
-| `ngate.tunnel.connect.errors` | Counter | vport, member, error | Erros de connect (refused, timeout, no_route) |
-| `ngate.tunnel.connect.duration` | Timer | vport, member | Latência de connect ao backend (ms) |
+| `ishin.tunnel.connect.errors` | Counter | vport, member, error | Erros de connect (refused, timeout, no_route) |
+| `ishin.tunnel.connect.duration` | Timer | vport, member | Latência de connect ao backend (ms) |
 
 ### Métricas de Pool
 
 | Métrica | Tipo | Tags | Descrição |
 |---------|------|------|-----------|
-| `ngate.tunnel.pool.members` | Gauge | vport, status | Membros por status (ACTIVE, STANDBY, DRAINING) |
-| `ngate.tunnel.pool.removals` | Counter | vport, member, reason | Remoções do pool (graceful, keepalive_timeout, io_exception) |
-| `ngate.tunnel.pool.standby_promotions` | Counter | vport | Promoções de STANDBY → ACTIVE |
-| `ngate.tunnel.listeners.active` | Gauge | — | Listeners TCP ativos |
+| `ishin.tunnel.pool.members` | Gauge | vport, status | Membros por status (ACTIVE, STANDBY, DRAINING) |
+| `ishin.tunnel.pool.removals` | Counter | vport, member, reason | Remoções do pool (graceful, keepalive_timeout, io_exception) |
+| `ishin.tunnel.pool.standby_promotions` | Counter | vport | Promoções de STANDBY → ACTIVE |
+| `ishin.tunnel.listeners.active` | Gauge | — | Listeners TCP ativos |
 
 Para configuração do Tunnel Mode, veja [docs/configuration.md](configuration.md#tunnel-mode).
 
@@ -399,9 +415,9 @@ Para configuração do Tunnel Mode, veja [docs/configuration.md](configuration.m
 
 ## Dashboard de Observabilidade
 
-O n-gate embute um dashboard Web para monitoramento em tempo real, acessível via porta dedicada (default `9200`). O dashboard é um servidor Javalin standalone que serve uma SPA React e expõe endpoints REST + WebSocket.
+O ishin-gateway embute um dashboard Web para monitoramento em tempo real, acessível via porta dedicada (default `9200`). O dashboard é um servidor Javalin standalone que serve uma SPA React e expõe endpoints REST + WebSocket.
 
-![Arquitetura do Dashboard](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/n-gate/main/docs/diagrams/dashboard_architecture.puml)
+![Arquitetura do Dashboard](https://uml.nishisan.dev/proxy?src=https://raw.githubusercontent.com/nishisan-dev/ishin-gateway/main/docs/diagrams/dashboard_architecture.puml)
 
 ### Acesso
 
@@ -411,7 +427,7 @@ http://localhost:9200/
 
 # API REST
 http://localhost:9200/api/v1/metrics/current
-http://localhost:9200/api/v1/metrics/history?name=ngate.request.duration&from=...&to=...
+http://localhost:9200/api/v1/metrics/history?name=ishin.request.duration&from=...&to=...
 http://localhost:9200/api/v1/topology
 http://localhost:9200/api/v1/health
 ```
@@ -469,7 +485,7 @@ O dashboard persiste métricas históricas em H2 embedded com um modelo inspirad
 | `/api/v1/topology` | GET | Grafo de topologia (listeners → gateway → backends) |
 | `/api/v1/traces` | GET | Proxy para Zipkin API v2 (se habilitado) |
 | `/api/v1/traces/{traceId}` | GET | Proxy para trace específico no Zipkin |
-| `/api/v1/health` | GET | Status de saúde do n-gate |
+| `/api/v1/health` | GET | Status de saúde do ishin-gateway |
 | `/api/v1/events` | GET | Últimos N eventos do sistema |
 | `/ws/metrics` | WebSocket | Push de métricas em tempo real (a cada 5s) |
 
@@ -477,7 +493,7 @@ O dashboard persiste métricas históricas em H2 embedded com um modelo inspirad
 
 | Parâmetro | Tipo | Obrigatório | Descrição |
 |-----------|------|-------------|-----------|
-| `name` | string | ✅ | Nome da métrica (ex: `ngate.request.duration`) |
+| `name` | string | ✅ | Nome da métrica (ex: `ishin.request.duration`) |
 | `from` | ISO 8601 | — | Início do range (default: 1h atrás) |
 | `to` | ISO 8601 | — | Fim do range (default: agora) |
 | `tier` | string | — | Forçar tier específico (default: auto) |
@@ -519,7 +535,7 @@ O frontend é uma SPA React 19 com Vite, compilada para `src/main/resources/stat
 
 ```bash
 # Instalar dependências do frontend
-cd n-gate-ui && npm install
+cd ishin-gateway-ui && npm install
 
 # Dev server com hot reload (proxy para backend na porta 9200)
 npm run dev   # http://localhost:3000

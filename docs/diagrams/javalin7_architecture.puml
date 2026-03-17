@@ -16,7 +16,7 @@ skinparam note {
     BorderColor #FFC107
 }
 
-title n-gate — Javalin 7 + Jetty 12 + Loom Architecture
+title ishin-gateway — Javalin 7 + Jetty 12 + Loom Architecture
 
 package "Docker Compose" {
 
@@ -26,7 +26,7 @@ package "Docker Compose" {
 
     rectangle "**Zipkin**\n(zipkin:9411)" as zipkin #FFF3E0
 
-    package "n-gate" as adapter {
+    package "ishin-gateway" as adapter {
 
         rectangle "**Spring Boot 3.5**\nApplicationReadyEvent" as spring #E8EAF6
 
