@@ -22,6 +22,8 @@ export function TracesPanel({ enabled }: Props) {
   const [loading, setLoading] = useState(false);
   const [searchService, setSearchService] = useState('');
   const [selectedTrace, setSelectedTrace] = useState<Span[] | null>(null);
+  const [zipkinAvailable, setZipkinAvailable] = useState(enabled);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     if (!enabled) return;
@@ -34,21 +36,39 @@ export function TracesPanel({ enabled }: Props) {
       const params: Record<string, string> = { limit: '20' };
       if (searchService) params.serviceName = searchService;
       const data = await api.getTraces(params);
-      setTraces(data || []);
+
+      if (Array.isArray(data)) {
+        setZipkinAvailable(true);
+        setErrorMessage('');
+        setTraces(data);
+        return;
+      }
+
+      const message = extractErrorMessage(data);
+      setZipkinAvailable(false);
+      setErrorMessage(message);
+      setSelectedTrace(null);
+      setTraces([]);
     } catch {
+      setZipkinAvailable(false);
+      setErrorMessage('Falha ao buscar traces');
       setTraces([]);
     } finally {
       setLoading(false);
     }
   };
 
-  if (!enabled) {
+  if (!enabled || !zipkinAvailable) {
     return (
       <div className="traces-disabled">
         <Layers size={24} />
-        <p>Integração Zipkin desabilitada</p>
+        <p>{!enabled ? 'Integração Zipkin desabilitada' : 'Traces indisponíveis'}</p>
         <span className="text-muted">
-          Configure <code>dashboard.zipkin.enabled: true</code> no adapter.yaml
+          {errorMessage || (
+            <>
+              Configure <code>dashboard.zipkin.enabled: true</code> no adapter.yaml
+            </>
+          )}
         </span>
       </div>
     );
@@ -173,4 +193,15 @@ function formatDuration(micros: number): string {
   if (micros < 1000) return `${micros}µs`;
   if (micros < 1_000_000) return `${(micros / 1000).toFixed(1)}ms`;
   return `${(micros / 1_000_000).toFixed(2)}s`;
+}
+
+function extractErrorMessage(value: unknown): string {
+  if (value && typeof value === 'object' && 'error' in value) {
+    const error = value.error;
+    if (typeof error === 'string' && error.trim().length > 0) {
+      return error;
+    }
+  }
+
+  return 'Resposta inesperada da API de traces';
 }
