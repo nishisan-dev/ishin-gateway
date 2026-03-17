@@ -5,9 +5,12 @@ import {
   Handle,
   Position,
   MarkerType,
+  useNodesState,
   type Node,
   type Edge,
   type NodeProps,
+  type XYPosition,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
@@ -78,6 +81,8 @@ interface TimingSummary {
   max?: number;
 }
 
+type NodePositionOverrides = Record<string, XYPosition>;
+
 const EMPTY_COUNTER_TOTALS: CounterTotals = {
   global: 0,
   listeners: {},
@@ -90,6 +95,23 @@ const EMPTY_RATES: TopologyRates = {
   ...EMPTY_COUNTER_TOTALS,
 };
 
+const LISTENER_NODE_WIDTH = 240;
+const CONTEXT_NODE_WIDTH = 300;
+const SCRIPT_NODE_WIDTH = 280;
+const CORE_NODE_WIDTH = 240;
+const LISTENER_NODE_HEIGHT = 88;
+const CONTEXT_NODE_HEIGHT = 118;
+const SCRIPT_NODE_HEIGHT = 94;
+const GATEWAY_NODE_HEIGHT = 92;
+const BACKEND_NODE_HEIGHT = 88;
+const COLUMN_GAP = 104;
+const TOP_PADDING = 72;
+const CONTEXT_ROW_GAP = 24;
+const SCRIPT_ROW_GAP = 14;
+const GROUP_GAP = 44;
+const BACKEND_ROW_GAP = 44;
+const TOPOLOGY_LAYOUT_STORAGE_KEY = 'ngate.topology.layout.positions';
+
 const nodeTypes = {
   topology: TopologyFlowNode,
 };
@@ -97,7 +119,10 @@ const nodeTypes = {
 export function TopologyView({ data, loading, metrics }: Props) {
   const snapshot = useMemo(() => collectMetricSnapshot(metrics), [metrics]);
   const previousCountersRef = useRef<{ timestamp: number; counters: CounterTotals } | null>(null);
+  const reactFlowRef = useRef<ReactFlowInstance<TopologyFlowNodeType, Edge> | null>(null);
   const [rates, setRates] = useState<TopologyRates>(EMPTY_RATES);
+  const [positionOverrides, setPositionOverrides] = useState<NodePositionOverrides>(() => loadStoredNodePositions());
+  const [flowNodes, setFlowNodes, onNodesChange] = useNodesState<TopologyFlowNodeType>([]);
 
   useEffect(() => {
     const now = Date.now();
@@ -115,6 +140,17 @@ export function TopologyView({ data, loading, metrics }: Props) {
     contexts: summarizeTiming(snapshot.contextTiming),
     scripts: summarizeTiming(snapshot.scriptTiming),
   }), [snapshot.contextTiming, snapshot.scriptTiming]);
+
+  useEffect(() => {
+    if (!data) return;
+
+    const activeNodeIds = new Set(data.nodes.map((node) => node.id));
+    setPositionOverrides((current) => prunePositionOverrides(current, activeNodeIds));
+  }, [data]);
+
+  useEffect(() => {
+    persistNodePositions(positionOverrides);
+  }, [positionOverrides]);
 
   const { nodes, edges } = useMemo(() => {
     if (!data) return { nodes: [] as TopologyFlowNodeType[], edges: [] as Edge[] };
@@ -153,14 +189,27 @@ export function TopologyView({ data, loading, metrics }: Props) {
       scriptsByContext.set(contextId, current);
     });
 
-    const topPadding = 80;
-    const listenerX = 60;
-    const contextX = 285;
-    const scriptX = 520;
-    const gatewayX = 760;
-    const backendX = 1020;
+    const hasContextNodes = contexts.length > 0;
+    const hasScriptNodes = scripts.length > 0;
+    let nextColumnX = 48;
 
-    let cursorY = topPadding;
+    const listenerX = nextColumnX;
+    nextColumnX += LISTENER_NODE_WIDTH + COLUMN_GAP;
+
+    const contextX = nextColumnX;
+    if (hasContextNodes) {
+      nextColumnX += CONTEXT_NODE_WIDTH + COLUMN_GAP;
+    }
+
+    const scriptX = nextColumnX;
+    if (hasScriptNodes) {
+      nextColumnX += SCRIPT_NODE_WIDTH + COLUMN_GAP;
+    }
+
+    const gatewayX = nextColumnX;
+    const backendX = gatewayX + CORE_NODE_WIDTH + COLUMN_GAP;
+
+    let cursorY = TOP_PADDING;
 
     listeners.forEach((listenerNode) => {
       const listenerName = listenerNode.label;
@@ -169,7 +218,7 @@ export function TopologyView({ data, loading, metrics }: Props) {
       if (listenerContexts.length === 0) {
         flowNodes.push(createFlowNode(
           listenerNode.id,
-          { x: listenerX, y: cursorY },
+          resolveNodePosition(positionOverrides, listenerNode.id, { x: listenerX, y: cursorY }),
           {
             kind: 'listener',
             label: listenerNode.label,
@@ -179,7 +228,7 @@ export function TopologyView({ data, loading, metrics }: Props) {
             chips: [],
           }
         ));
-        cursorY += 164;
+        cursorY += LISTENER_NODE_HEIGHT + GROUP_GAP;
         return;
       }
 
@@ -193,7 +242,7 @@ export function TopologyView({ data, loading, metrics }: Props) {
 
         flowNodes.push(createFlowNode(
           contextNode.id,
-          { x: contextX, y: contextY },
+          resolveNodePosition(positionOverrides, contextNode.id, { x: contextX, y: contextY }),
           {
             kind: 'context',
             label: contextNode.label,
@@ -206,13 +255,18 @@ export function TopologyView({ data, loading, metrics }: Props) {
         ));
 
         const relatedScripts = scriptsByContext.get(contextNode.id) ?? [];
+        const scriptStartY = contextY + CONTEXT_NODE_HEIGHT + SCRIPT_ROW_GAP;
         relatedScripts.forEach((scriptNode, scriptIndex) => {
           const scriptKey = buildScriptMetricKey(listenerName, contextNode.label, scriptNode.script ?? scriptNode.label);
           scriptKeyById.set(scriptNode.id, scriptKey);
 
           flowNodes.push(createFlowNode(
             scriptNode.id,
-            { x: scriptX, y: contextY + 78 + scriptIndex * 86 },
+            resolveNodePosition(
+              positionOverrides,
+              scriptNode.id,
+              { x: scriptX, y: scriptStartY + scriptIndex * (SCRIPT_NODE_HEIGHT + SCRIPT_ROW_GAP) }
+            ),
             {
               kind: 'script',
               label: shortenScriptLabel(scriptNode.script ?? scriptNode.label),
@@ -225,14 +279,21 @@ export function TopologyView({ data, loading, metrics }: Props) {
           ));
         });
 
-        cursorY += 104 + relatedScripts.length * 86;
+        const scriptBlockHeight = relatedScripts.length > 0
+          ? relatedScripts.length * SCRIPT_NODE_HEIGHT + (relatedScripts.length - 1) * SCRIPT_ROW_GAP
+          : 0;
+        const contextBlockHeight = CONTEXT_NODE_HEIGHT
+          + (scriptBlockHeight > 0 ? SCRIPT_ROW_GAP + scriptBlockHeight : 0);
+
+        cursorY += contextBlockHeight + CONTEXT_ROW_GAP;
       });
 
-      const listenerY = groupStartY + Math.max(0, (cursorY - groupStartY - 104) / 2);
+      const groupHeight = Math.max(0, cursorY - groupStartY - CONTEXT_ROW_GAP);
+      const listenerY = groupStartY + Math.max(0, (groupHeight - LISTENER_NODE_HEIGHT) / 2);
 
       flowNodes.push(createFlowNode(
         listenerNode.id,
-        { x: listenerX, y: listenerY },
+        resolveNodePosition(positionOverrides, listenerNode.id, { x: listenerX, y: listenerY }),
         {
           kind: 'listener',
           label: listenerNode.label,
@@ -243,16 +304,23 @@ export function TopologyView({ data, loading, metrics }: Props) {
         }
       ));
 
-      cursorY += 36;
+      cursorY += GROUP_GAP - CONTEXT_ROW_GAP;
     });
 
-    const contentBottom = Math.max(cursorY, topPadding + Math.max(backends.length - 1, 0) * 132 + 120);
-    const gatewayY = topPadding + Math.max(0, (contentBottom - topPadding - 110) / 2);
+    const backendStackHeight = backends.length > 0
+      ? BACKEND_NODE_HEIGHT + Math.max(backends.length - 1, 0) * (BACKEND_NODE_HEIGHT + BACKEND_ROW_GAP)
+      : 0;
+    const contentBottom = Math.max(cursorY, TOP_PADDING + backendStackHeight);
+    const gatewayY = TOP_PADDING + Math.max(0, (contentBottom - TOP_PADDING - GATEWAY_NODE_HEIGHT) / 2);
 
     gateways.forEach((gatewayNode, index) => {
       flowNodes.push(createFlowNode(
         gatewayNode.id,
-        { x: gatewayX, y: gatewayY + index * 132 },
+        resolveNodePosition(
+          positionOverrides,
+          gatewayNode.id,
+          { x: gatewayX, y: gatewayY + index * (GATEWAY_NODE_HEIGHT + BACKEND_ROW_GAP) }
+        ),
         {
           kind: 'gateway',
           label: gatewayNode.label,
@@ -264,11 +332,15 @@ export function TopologyView({ data, loading, metrics }: Props) {
       ));
     });
 
-    const backendStartY = gatewayY - Math.max(0, (backends.length - 1) * 66);
+    const backendStartY = gatewayY - Math.max(0, ((backends.length - 1) * (BACKEND_NODE_HEIGHT + BACKEND_ROW_GAP)) / 2);
     backends.forEach((backendNode, index) => {
       flowNodes.push(createFlowNode(
         backendNode.id,
-        { x: backendX, y: backendStartY + index * 132 },
+        resolveNodePosition(
+          positionOverrides,
+          backendNode.id,
+          { x: backendX, y: backendStartY + index * (BACKEND_NODE_HEIGHT + BACKEND_ROW_GAP) }
+        ),
         {
           kind: 'backend',
           label: backendNode.label,
@@ -320,7 +392,25 @@ export function TopologyView({ data, loading, metrics }: Props) {
     });
 
     return { nodes: flowNodes, edges: flowEdges };
-  }, [data, rates, timingSummary]);
+  }, [data, positionOverrides, rates, timingSummary]);
+
+  useEffect(() => {
+    setFlowNodes(nodes);
+  }, [nodes, setFlowNodes]);
+
+  const manualLayoutActive = Object.keys(positionOverrides).length > 0;
+
+  function handleResetLayout() {
+    setPositionOverrides({});
+
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          reactFlowRef.current?.fitView({ padding: 0.14, duration: 240 });
+        });
+      });
+    }
+  }
 
   if (loading) {
     return (
@@ -343,25 +433,43 @@ export function TopologyView({ data, loading, metrics }: Props) {
     <div className="topology-container">
       <div className="topology-header">
         <h3>Topologia</h3>
-        <div className="topology-badges">
-          {data.circuitBreaker?.enabled && <span className="badge badge-accent">CB</span>}
-          {data.rateLimiting?.enabled && <span className="badge badge-warning">RL</span>}
-          {data.cluster?.enabled && (
-            <span className="badge badge-success">Cluster: {data.cluster.clusterName}</span>
-          )}
+        <div className="topology-controls">
+          <div className="topology-badges">
+            {manualLayoutActive && <span className="badge badge-accent">Layout manual</span>}
+            {data.circuitBreaker?.enabled && <span className="badge badge-accent">CB</span>}
+            {data.rateLimiting?.enabled && <span className="badge badge-warning">RL</span>}
+            {data.cluster?.enabled && (
+              <span className="badge badge-success">Cluster: {data.cluster.clusterName}</span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="topology-layout-btn"
+            onClick={handleResetLayout}
+            disabled={!manualLayoutActive}
+          >
+            Reset layout
+          </button>
         </div>
       </div>
       <div className="topology-flow">
         <ReactFlow
-          nodes={nodes}
+          nodes={flowNodes}
           edges={edges}
+          onNodesChange={onNodesChange}
+          onNodeDragStop={(_, node) => {
+            setPositionOverrides((current) => updateNodePosition(current, node.id, node.position));
+          }}
           nodeTypes={nodeTypes}
+          onInit={(instance) => {
+            reactFlowRef.current = instance;
+          }}
           fitView
           fitViewOptions={{ padding: 0.14 }}
           panOnDrag
           zoomOnScroll
           zoomOnPinch
-          nodesDraggable={false}
+          nodesDraggable
           nodesConnectable={false}
           elementsSelectable={false}
           minZoom={0.45}
@@ -425,9 +533,82 @@ function createFlowNode(
     position,
     sourcePosition: Position.Right,
     targetPosition: Position.Left,
-    draggable: false,
+    draggable: true,
     selectable: false,
     data,
+  };
+}
+
+function loadStoredNodePositions(): NodePositionOverrides {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const raw = window.localStorage.getItem(TOPOLOGY_LAYOUT_STORAGE_KEY);
+    if (!raw) return {};
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter((entry): entry is [string, XYPosition] => {
+        const value = entry[1] as Partial<XYPosition> | null;
+        return typeof value === 'object'
+          && value !== null
+          && typeof value.x === 'number'
+          && typeof value.y === 'number';
+      })
+    );
+  } catch {
+    return {};
+  }
+}
+
+function persistNodePositions(positionOverrides: NodePositionOverrides) {
+  if (typeof window === 'undefined') return;
+
+  if (Object.keys(positionOverrides).length === 0) {
+    window.localStorage.removeItem(TOPOLOGY_LAYOUT_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(TOPOLOGY_LAYOUT_STORAGE_KEY, JSON.stringify(positionOverrides));
+}
+
+function prunePositionOverrides(
+  current: NodePositionOverrides,
+  activeNodeIds: Set<string>
+): NodePositionOverrides {
+  const next = Object.fromEntries(
+    Object.entries(current).filter(([nodeId]) => activeNodeIds.has(nodeId))
+  );
+
+  return Object.keys(next).length === Object.keys(current).length ? current : next;
+}
+
+function resolveNodePosition(
+  positionOverrides: NodePositionOverrides,
+  nodeId: string,
+  fallback: XYPosition
+): XYPosition {
+  return positionOverrides[nodeId] ?? fallback;
+}
+
+function updateNodePosition(
+  current: NodePositionOverrides,
+  nodeId: string,
+  position: XYPosition
+): NodePositionOverrides {
+  const previous = current[nodeId];
+  if (previous && previous.x === position.x && previous.y === position.y) {
+    return current;
+  }
+
+  return {
+    ...current,
+    [nodeId]: {
+      x: round(position.x),
+      y: round(position.y),
+    },
   };
 }
 
