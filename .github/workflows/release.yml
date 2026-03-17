@@ -123,7 +123,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Upload com nome versionado
           gh release upload "${GITHUB_REF_NAME}" "${DEB_FILE}"
+          # Upload com nome estável para /releases/latest/download/
+          cp "${DEB_FILE}" ishin-gateway_latest_all.deb
+          gh release upload "${GITHUB_REF_NAME}" ishin-gateway_latest_all.deb --clobber
 
       - name: Upload JAR artifact for Docker job
         uses: actions/upload-artifact@v4
