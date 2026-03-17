@@ -68,6 +68,9 @@ docker run -d \
 | `/app/ssl/` | Opcional | Keystores Java para listeners HTTPS |
 | `/app/data/` | Opcional | Dados persistentes (NGrid, dashboard H2) |
 
+> [!WARNING]
+> **Cluster mode:** O volume `rules/` **não pode ser montado como `:ro`**. O `RulesBundleManager` materializa scripts recebidos via `DistributedMap` diretamente no `rulesBasePath`, exigindo permissão de escrita. Em standalone, `:ro` é seguro.
+
 ---
 
 ## Exemplo — Docker Compose (standalone)
@@ -90,6 +93,9 @@ services:
 
 ## Exemplo — Docker Compose (cluster 3 nós)
 
+> [!IMPORTANT]
+> No cluster, `rules` é montado **sem `:ro`** — o deploy de rules via CLI/DistributedMap precisa escrever nesse diretório. O volume inicial serve apenas como bootstrap (first boot). Após o primeiro deploy via Admin API, o cluster gerencia os scripts automaticamente.
+
 ```yaml
 services:
   ishin-1:
@@ -104,7 +110,7 @@ services:
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
     volumes:
       - ./config/adapter-cluster.yaml:/app/config/adapter.yaml:ro
-      - ./rules:/app/rules:ro
+      - ishin-1-rules:/app/rules
       - ishin-1-data:/app/data
 
   ishin-2:
@@ -119,7 +125,7 @@ services:
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
     volumes:
       - ./config/adapter-cluster.yaml:/app/config/adapter.yaml:ro
-      - ./rules:/app/rules:ro
+      - ishin-2-rules:/app/rules
       - ishin-2-data:/app/data
 
   ishin-3:
@@ -134,10 +140,13 @@ services:
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
     volumes:
       - ./config/adapter-cluster.yaml:/app/config/adapter.yaml:ro
-      - ./rules:/app/rules:ro
+      - ishin-3-rules:/app/rules
       - ishin-3-data:/app/data
 
 volumes:
+  ishin-1-rules:
+  ishin-2-rules:
+  ishin-3-rules:
   ishin-1-data:
   ishin-2-data:
   ishin-3-data:
