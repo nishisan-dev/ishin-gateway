@@ -74,10 +74,10 @@ export function LatencyChart({
         const chartData: RRDPoint[] = records.map(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (r: any) => {
-            const ts = r.timestamp || r.bucket_ts;
+            const timestamp = parseApiTimestamp(r.timestamp || r.bucket_ts);
             return {
-              time: new Date(ts).toLocaleString('pt-BR', timeFormat),
-              timestamp: new Date(ts).getTime(),
+              time: new Date(timestamp).toLocaleString('pt-BR', timeFormat),
+              timestamp,
               min: round(r.min ?? r.val_min ?? r.value ?? 0),
               avg: round(r.avg ?? r.val_avg ?? r.value ?? 0),
               max: round(r.max ?? r.val_max ?? r.value ?? 0),
@@ -269,4 +269,24 @@ export function LatencyChart({
 
 function round(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function parseApiTimestamp(value: unknown): number {
+  if (typeof value === 'number') {
+    return value < 1_000_000_000_000 ? value * 1000 : value;
+  }
+
+  if (typeof value === 'string') {
+    const numericValue = Number(value);
+    if (Number.isFinite(numericValue)) {
+      return numericValue < 1_000_000_000_000 ? numericValue * 1000 : numericValue;
+    }
+
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return Date.now();
 }

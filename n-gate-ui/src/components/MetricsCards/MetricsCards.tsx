@@ -27,18 +27,19 @@ interface CardData {
 
 interface SparklinePoint {
   time: string;
+  timestamp: number;
   value: number;
 }
 
 // ─── Mapa estático: label → { metricName, showAsRate } ────────
 // Usado pelo sparkline para evitar dependência de `cards` (que muda a cada push)
-const CARD_META: Record<string, { metricName: string; showAsRate: boolean }> = {
-  'Requests':     { metricName: 'ngate.requests.total', showAsRate: true },
-  'Req/s':        { metricName: 'ngate.requests.total', showAsRate: true },
-  'Latência Média': { metricName: 'ngate.request.duration', showAsRate: false },
-  'Erros 5xx':    { metricName: 'ngate.request.errors', showAsRate: true },
-  'Rate Limited': { metricName: 'ngate.ratelimit.total', showAsRate: true },
-  'Threads':      { metricName: 'jvm.threads.live', showAsRate: false },
+const CARD_META: Record<string, { metricName: string; showAsRate: boolean; sparkUnit: string }> = {
+  'Requests':       { metricName: 'ngate.requests.total', showAsRate: true, sparkUnit: 'req/s' },
+  'Req/s':          { metricName: 'ngate.requests.total', showAsRate: true, sparkUnit: 'req/s' },
+  'Latência Média': { metricName: 'ngate.request.duration', showAsRate: false, sparkUnit: 'ms' },
+  'Erros 5xx':      { metricName: 'ngate.request.errors', showAsRate: true, sparkUnit: 'err/s' },
+  'Rate Limited':   { metricName: 'ngate.ratelimit.total', showAsRate: true, sparkUnit: 'rej/s' },
+  'Threads':        { metricName: 'jvm.threads.live', showAsRate: false, sparkUnit: 'ativos' },
 };
 
 const COLOR_MAP: Record<string, string> = {
@@ -149,24 +150,27 @@ export function MetricsCards({ metrics }: Props) {
       const records = response?.data || response || [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let points: SparklinePoint[] = records.map((r: any) => {
-        const ts = r.timestamp || r.bucket_ts;
+        const pointDate = new Date(parseApiTimestamp(r.timestamp || r.bucket_ts));
         return {
-          time: new Date(ts).toLocaleTimeString('pt-BR', {
+          time: pointDate.toLocaleTimeString('pt-BR', {
             hour: '2-digit',
             minute: '2-digit',
           }),
-          value: Math.round((r.avg ?? r.val_avg ?? r.value ?? 0) * 100) / 100,
+          timestamp: pointDate.getTime(),
+          value: round((r.avg ?? r.val_avg ?? r.value ?? 0) as number),
         };
       });
 
-      // Para counters, computa rate (delta entre pontos consecutivos)
+      // Para counters, computa taxa real por segundo usando o delta temporal
       if (meta.showAsRate && points.length > 1) {
         const ratePoints: SparklinePoint[] = [];
         for (let i = 1; i < points.length; i++) {
           const delta = points[i].value - points[i - 1].value;
+          const elapsedSeconds = (points[i].timestamp - points[i - 1].timestamp) / 1000;
           ratePoints.push({
             time: points[i].time,
-            value: Math.max(0, Math.round(delta * 100) / 100),
+            timestamp: points[i].timestamp,
+            value: elapsedSeconds > 0 ? Math.max(0, round(delta / elapsedSeconds)) : 0,
           });
         }
         points = ratePoints;
@@ -199,6 +203,7 @@ export function MetricsCards({ metrics }: Props) {
 
   // Cor do card expandido
   const expandedColor = cards.find((c) => c.label === expandedCard)?.color ?? 'accent';
+  const expandedMeta = expandedCard ? CARD_META[expandedCard] : undefined;
 
   return (
     <div className="metrics-cards-container">
@@ -258,13 +263,18 @@ export function MetricsCards({ metrics }: Props) {
                     </linearGradient>
                   </defs>
                   <XAxis
-                    dataKey="time"
+                    type="number"
+                    dataKey="timestamp"
+                    domain={['dataMin', 'dataMax']}
+                    scale="time"
                     stroke="#5C5F66"
                     fontSize={9}
                     fontFamily="var(--font-mono)"
                     tickLine={false}
                     axisLine={false}
                     interval="preserveStartEnd"
+                    minTickGap={24}
+                    tickFormatter={(value) => formatSparklineTick(Number(value))}
                   />
                   <Tooltip
                     contentStyle={{
@@ -277,6 +287,12 @@ export function MetricsCards({ metrics }: Props) {
                       padding: '4px 8px',
                     }}
                     labelStyle={{ color: '#909296', fontSize: '10px' }}
+                    labelFormatter={(value) => formatSparklineTooltipLabel(Number(value))}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    formatter={((value: number | string) => [
+                      formatSparklineValue(Number(value), expandedMeta?.sparkUnit),
+                      expandedMeta?.showAsRate ? 'Taxa' : 'Valor',
+                    ]) as any}
                   />
                   <Area
                     type="monotone"
@@ -364,4 +380,54 @@ function formatNumber(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
   return Math.round(n).toLocaleString();
+}
+
+function round(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function formatSparklineTick(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatSparklineTooltipLabel(timestamp: number): string {
+  return new Date(timestamp).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function formatSparklineValue(value: number, unit?: string): string {
+  const rounded = round(value);
+  const formatted = rounded.toLocaleString('pt-BR', {
+    minimumFractionDigits: Number.isInteger(rounded) ? 0 : 1,
+    maximumFractionDigits: 2,
+  });
+  return unit ? `${formatted} ${unit}` : formatted;
+}
+
+function parseApiTimestamp(value: unknown): number {
+  if (typeof value === 'number') {
+    return value < 1_000_000_000_000 ? value * 1000 : value;
+  }
+
+  if (typeof value === 'string') {
+    const numericValue = Number(value);
+    if (Number.isFinite(numericValue)) {
+      return numericValue < 1_000_000_000_000 ? numericValue * 1000 : numericValue;
+    }
+
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return Date.now();
 }
