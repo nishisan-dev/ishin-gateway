@@ -68,6 +68,7 @@ public class TunnelEngine {
 
     public void start() {
         this.running = true;
+        metrics.registerGlobalActiveConnections(totalActiveConnections);
         logger.info("TunnelEngine started — bindAddress: {}", bindAddress);
     }
 
@@ -232,6 +233,8 @@ public class TunnelEngine {
 
             // Pipe estabelecido
             metrics.recordConnectionAccepted(virtualPort, selected.getKey());
+            metrics.registerPerBackendActiveConnections(virtualPort, selected.getKey(),
+                    selected.getActiveConnections());
             selected.getActiveConnections().incrementAndGet();
 
             // Pipe bidirecional em duas Virtual Threads
