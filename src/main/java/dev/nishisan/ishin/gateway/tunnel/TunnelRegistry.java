@@ -190,9 +190,11 @@ public class TunnelRegistry {
         for (String registryKey : keysSnapshot) {
             TunnelRegistryEntry registryEntry = registryMap.get(registryKey).orElse(null);
             if (registryEntry == null) {
-                keysToForget.add(registryKey);
+                // Chave ainda não registrada ou temporariamente indisponível — ignorar.
+                // Não removemos de knownRegistryKeys para que o poller retente.
                 continue;
             }
+
 
             for (TunnelRegistryEntry.ListenerRegistration listener : registryEntry.getListeners()) {
                 int virtualPort = listener.getVirtualPort();
@@ -208,13 +210,17 @@ public class TunnelRegistry {
                 });
 
                 // Criar ou atualizar membro
+                // Usa currentTimeMillis() como lastKeepAlive (proof-of-life):
+                // O DistributedMap.put() de um follower não propaga o lastKeepAlive ao leader,
+                // então o campo serializado fica stale. O fato de o entry existir no poller
+                // confirma que o proxy está vivo.
                 BackendMember member = new BackendMember(
                         registryEntry.getNodeId(),
                         registryEntry.getHost(),
                         listener.getRealPort(),
                         registryEntry.getStatus(),
                         registryEntry.getWeight(),
-                        registryEntry.getLastKeepAlive(),
+                        System.currentTimeMillis(),
                         registryEntry.getKeepaliveInterval()
                 );
 
