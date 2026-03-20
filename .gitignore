@@ -7,3 +7,4 @@ log/
 .ai/
 .vscode/
 node_modules/
+settings.xml
