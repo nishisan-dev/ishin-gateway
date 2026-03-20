@@ -37,7 +37,7 @@ export function TunnelMetricsCards({ metrics, runtime }: Props) {
   const prevConnsRef = useRef<{ count: number; time: number } | null>(null);
 
   // ─── Calcula conn/s a partir do delta do contador ─────────
-  const totalConns = sumAllMetricValues(metrics, 'ishin.tunnel.connections.total', 'count');
+  const totalConns = sumAllMetricValues(metrics, 'ishin.tunnel.connections.total', 'value');
   useEffect(() => {
     const now = Date.now();
     if (prevConnsRef.current !== null) {
@@ -56,8 +56,8 @@ export function TunnelMetricsCards({ metrics, runtime }: Props) {
   const avgConnectMs = findMetricValue(metrics, 'ishin.tunnel.connect.duration.seconds', 'mean') ?? 0;
 
   // Throughput (somando bytes in + out)
-  const bytesIn = findMetricValue(metrics, 'ishin.tunnel.bytes.sent.total', 'value') ?? 0;
-  const bytesOut = findMetricValue(metrics, 'ishin.tunnel.bytes.received.total', 'value') ?? 0;
+  const bytesIn = sumAllMetricValues(metrics, 'ishin.tunnel.bytes.sent.total', 'value');
+  const bytesOut = sumAllMetricValues(metrics, 'ishin.tunnel.bytes.received.total', 'value');
   const totalBytes = bytesIn + bytesOut;
 
   const cards = useMemo(() => [
