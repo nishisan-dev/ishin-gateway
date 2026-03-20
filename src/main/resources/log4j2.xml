@@ -1,25 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN">
     <Appenders>
-
         <Console name="STDOUT" target="SYSTEM_OUT">
             <PatternLayout pattern="[%5p] %d{dd-MMM-yyyy HH:mm:ss} - %m%n"/>
         </Console>
-
     </Appenders>
     <Loggers>
-
         <AsyncLogger name="org.springframework" level="info" additivity="false">
             <AppenderRef ref="STDOUT"/>
         </AsyncLogger>
-
         <AsyncLogger name="com.google.api.client.http" level="info" additivity="false">
             <AppenderRef ref="STDOUT"/>
         </AsyncLogger>
-
-        <Root level="debug">
+        <Root level="$${env:LOGGER_LEVEL:-info}">
             <AppenderRef ref="STDOUT"/>
         </Root>
-
     </Loggers>
 </Configuration>
