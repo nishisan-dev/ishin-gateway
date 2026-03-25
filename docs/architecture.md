@@ -138,9 +138,22 @@ O gateway recebe requests HTTP, os processa através de um pipeline configuráve
 11. **Response Adapter** — `HttpResponseAdapter.writeResponse()` converte a resposta:
     - Executa response processors (closures Groovy)
     - Copia headers e status
+    - **SSE Detection**: se `Content-Type: text/event-stream`, ativa SSE pass-through mode
     - Faz streaming (`returnPipe`) ou materialização
+    - **SSE Pass-Through**: flush por evento SSE (delimitador `\n\n`) com headers obrigatórios (Cache-Control: no-cache, Connection: keep-alive, X-Accel-Buffering: no)
 12. **Resposta ao Cliente** — Status, headers e body enviados. Header `x-trace-id` adicionado.
 13. **Root Span Finalizado** — Tag `http.status_code` adicionada, span fechado.
+
+### SSE Pass-Through (MCP Gateway)
+
+O gateway detecta automaticamente respostas SSE do upstream e ativa o modo pass-through:
+
+1. **Detecção**: `Accept: text/event-stream` no request **ou** `Content-Type: text/event-stream` na response
+2. **Timeout**: OkHttp client recriado com `callTimeout(0)` e `readTimeout(0)` para conexões de longa duração
+3. **Streaming**: Flush por evento SSE (a cada `\n\n`) em vez de buffered pipe, garantindo entrega em tempo real
+4. **Headers**: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`, `X-Accel-Buffering: no`
+5. **Métricas**: Counter `ishin.sse.streams.total` com tags `listener` e `backend`
+6. **Tracing**: Span tags `sse.requested`, `upstream.sse`, `sse` para rastreamento distribuído
 
 ---
 
