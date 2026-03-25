@@ -270,5 +270,24 @@ public class ProxyMetrics {
                         .register(registry)
         ).increment();
     }
+
+    // ─── SSE Pass-Through Metrics ────────────────────────────────────────
+
+    /**
+     * Registra a abertura de um SSE stream pass-through.
+     *
+     * @param listener nome do listener (ex: "http-noauth")
+     * @param backend  nome do backend upstream
+     */
+    public void recordSseStream(String listener, String backend) {
+        String key = "sse:" + listener + ":" + backend;
+        counterCache.computeIfAbsent(key, k ->
+                Counter.builder("ishin.sse.streams.total")
+                        .description("Total SSE streams proxied")
+                        .tag("listener", listener)
+                        .tag("backend", backend)
+                        .register(registry)
+        ).increment();
+    }
 }
 

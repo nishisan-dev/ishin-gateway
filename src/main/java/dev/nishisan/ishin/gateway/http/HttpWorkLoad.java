@@ -36,6 +36,7 @@ public class HttpWorkLoad {
     private HttpAdapterServletResponse clientResponse;
     private String body = "";
     private Boolean returnPipe = true;
+    private boolean sseMode = false;
 
     private final ConcurrentMap<String, Object> objects = new ConcurrentHashMap<>();
     
@@ -123,6 +124,14 @@ public class HttpWorkLoad {
 
     public void setReturnPipe(Boolean returnPipe) {
         this.returnPipe = returnPipe;
+    }
+
+    public boolean isSseMode() {
+        return sseMode;
+    }
+
+    public void setSseMode(boolean sseMode) {
+        this.sseMode = sseMode;
     }
 
 }

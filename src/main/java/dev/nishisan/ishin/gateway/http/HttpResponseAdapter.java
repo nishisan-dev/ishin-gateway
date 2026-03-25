@@ -126,17 +126,29 @@ public class HttpResponseAdapter {
                 //
                 SpanWrapper clientSpan = tracer.createChildSpan("response-send-to-client", responseSpan);
 
-                try (InputStream inputStream = w.getUpstreamResponse().getOkHttpResponse().body().byteStream(); OutputStream outputStream = w.getClientResponse().getOutputStream()) {
-                    logger.debug("Returning Pipe to the Client....");
-
-                    byte[] buffer = new byte[8192];
-                    int bytesRead;
-                    while ((bytesRead = inputStream.read(buffer)) != -1) {
-                        outputStream.write(buffer, 0, bytesRead);
-                    }
-                } finally {
-                    clientSpan.finish();
+                // Detecta SSE pelo Content-Type do upstream ou flag explícita do workload
+                String upstreamContentType = w.getUpstreamResponse().getContentType();
+                if (upstreamContentType == null) {
+                    upstreamContentType = w.getUpstreamResponse().getHeader("Content-Type");
                 }
+                boolean isSse = w.isSseMode()
+                        || (upstreamContentType != null && upstreamContentType.contains("text/event-stream"));
+                clientSpan.tag("sse", String.valueOf(isSse));
+
+                if (isSse) {
+                    writeSseStream(w, clientSpan);
+                } else {
+                    try (InputStream inputStream = w.getUpstreamResponse().getOkHttpResponse().body().byteStream(); OutputStream outputStream = w.getClientResponse().getOutputStream()) {
+                        logger.debug("Returning Pipe to the Client....");
+
+                        byte[] buffer = new byte[8192];
+                        int bytesRead;
+                        while ((bytesRead = inputStream.read(buffer)) != -1) {
+                            outputStream.write(buffer, 0, bytesRead);
+                        }
+                    }
+                }
+                clientSpan.finish();
             } else {
                 responseSpan.tag("return-synth", "" + synth);
                 if (synth) {
@@ -219,6 +231,78 @@ public class HttpResponseAdapter {
             }
         } finally {
             responseSpan.finish();
+        }
+    }
+
+    /**
+     * SSE pass-through: lê o upstream InputStream e faz flush por evento SSE.
+     * <p>
+     * O delimitador de evento SSE é uma linha vazia ({@code \n\n}).
+     * Cada vez que detectamos esse delimitador, fazemos flush do OutputStream
+     * para garantir entrega em tempo real ao cliente.
+     * <p>
+     * Headers SSE obrigatórios são setados antes do streaming:
+     * Content-Type: text/event-stream, Cache-Control: no-cache, Connection: keep-alive.
+     */
+    private void writeSseStream(HttpWorkLoad w, SpanWrapper clientSpan) throws IOException {
+        logger.info("SSE pass-through: streaming events from upstream to client");
+
+        // Setar headers SSE obrigatórios no client response
+        w.getClientResponse().setStatus(w.getUpstreamResponse().getStatus());
+
+        // Copiar headers do upstream, exceto os que serão sobrescritos
+        w.getUpstreamResponse().getHeaderNames().forEach(header -> {
+            String lowerHeader = header.toLowerCase();
+            if (!lowerHeader.equals("content-type")
+                    && !lowerHeader.equals("content-length")
+                    && !lowerHeader.equals("cache-control")
+                    && !lowerHeader.equals("connection")
+                    && !lowerHeader.equals("transfer-encoding")) {
+                w.getClientResponse().addHeader(header, w.getUpstreamResponse().getHeader(header));
+            }
+        });
+
+        // Headers SSE obrigatórios
+        w.getClientResponse().setContentType("text/event-stream");
+        w.getClientResponse().setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        w.getClientResponse().setHeader("Connection", "keep-alive");
+        w.getClientResponse().setHeader("X-Accel-Buffering", "no");
+
+        try (InputStream inputStream = w.getUpstreamResponse().getOkHttpResponse().body().byteStream();
+             OutputStream outputStream = w.getClientResponse().getOutputStream()) {
+
+            // Flush headers before streaming data
+            outputStream.flush();
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            int consecutiveNewlines = 0;
+
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+
+                // Detectar delimitador SSE (\n\n) e flush por evento
+                for (int i = 0; i < bytesRead; i++) {
+                    if (buffer[i] == '\n') {
+                        consecutiveNewlines++;
+                        if (consecutiveNewlines >= 2) {
+                            // Delimitador SSE detectado — flush imediato
+                            outputStream.flush();
+                            consecutiveNewlines = 0;
+                        }
+                    } else if (buffer[i] != '\r') {
+                        consecutiveNewlines = 0;
+                    }
+                    // \r é ignorado (suporte a \r\n)
+                }
+            }
+            // Flush final para garantir que qualquer dado residual seja enviado
+            outputStream.flush();
+            logger.info("SSE pass-through: upstream stream closed normally");
+        } catch (IOException ex) {
+            // Client disconnect ou upstream close — não é necessariamente um erro
+            logger.info("SSE pass-through: stream ended — {}", ex.getMessage());
+            clientSpan.tag("sse.disconnect", ex.getClass().getSimpleName());
         }
     }
 }

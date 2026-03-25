@@ -664,16 +664,34 @@ public class HttpProxyManager {
                      *
                      */
                     Long start = System.currentTimeMillis();
+
+                    // SSE: detectar Accept header para extensão de timeout
+                    String acceptHeader = handler.header("Accept");
+                    boolean sseRequested = acceptHeader != null && acceptHeader.contains("text/event-stream");
+                    if (sseRequested) {
+                        requestSpan.tag("sse.requested", "true");
+                        logger.info("SSE request detected — extending upstream timeouts for backend [{}]", backendname);
+                    }
+
                     try {
+                        // Obtenção do client (com timeout estendido se SSE)
+                        OkHttpClient upstreamClient = this.getHttpClientByListenerName(backendname);
+                        if (sseRequested) {
+                            upstreamClient = upstreamClient.newBuilder()
+                                    .callTimeout(0, TimeUnit.SECONDS)
+                                    .readTimeout(0, TimeUnit.SECONDS)
+                                    .build();
+                        }
+
                         // Circuit breaker: envolve a chamada upstream
                         Response res;
                         if (circuitBreakerManager != null) {
                             var cb = circuitBreakerManager.getOrCreate(backendname);
                             final Request finalReq = req;
-                            final String finalBackendname = backendname;
+                            final OkHttpClient finalClient = upstreamClient;
                             try {
                                 res = cb.executeCallable(() ->
-                                    this.getHttpClientByListenerName(finalBackendname).newCall(finalReq).execute()
+                                    finalClient.newCall(finalReq).execute()
                                 );
                             } catch (io.github.resilience4j.circuitbreaker.CallNotPermittedException cbEx) {
                                 logger.warn("Circuit breaker OPEN for backend [{}] — rejecting request immediately", backendname);
@@ -695,7 +713,7 @@ public class HttpProxyManager {
                                 throw new IOException("Circuit breaker wrapped exception", cbWrappedEx);
                             }
                         } else {
-                            res = this.getHttpClientByListenerName(backendname).newCall(req).execute();
+                            res = upstreamClient.newCall(req).execute();
                         }
 
                         // Tags de resposta upstream
@@ -723,6 +741,17 @@ public class HttpProxyManager {
                          * Javalin. Ponto de extensão para transformações
                          * adicionais na response (e.g. TMF-639).
                          */
+                        // SSE: detectar Content-Type da response e ativar modo SSE
+                        String responseContentType = res.header("Content-Type");
+                        if (responseContentType != null && responseContentType.contains("text/event-stream")) {
+                            w.setSseMode(true);
+                            w.setReturnPipe(true);
+                            requestSpan.tag("upstream.sse", "true");
+                            logger.info("SSE response detected from backend [{}] — activating SSE pass-through", backendname);
+                            if (proxyMetrics != null) {
+                                proxyMetrics.recordSseStream(listenerName, backendname);
+                            }
+                        }
                         w.setUpstreamResponse(this.okHttpResponseAdapter.getResponse(res));
                         try {
                             this.handleResponse(w);
