@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # ─────────────────────────────────────────────────────
 # Ishin Gateway — Multi-stage Docker Image
 # ─────────────────────────────────────────────────────
@@ -6,11 +7,12 @@
 FROM maven:3.9-eclipse-temurin-25 AS builder
 WORKDIR /build
 COPY pom.xml .
-COPY settings.xml /tmp/settings.xml
-RUN mvn -s /tmp/settings.xml dependency:go-offline -U -q || true
+RUN --mount=type=secret,id=maven_settings,target=/tmp/settings.xml,required=true \
+    mvn -s /tmp/settings.xml dependency:go-offline -U -q || true
 COPY src/ src/
 COPY rules/ rules/
-RUN mvn -s /tmp/settings.xml -DskipTests clean package -U
+RUN --mount=type=secret,id=maven_settings,target=/tmp/settings.xml,required=true \
+    mvn -s /tmp/settings.xml -DskipTests clean package -U
 
 # Stage 2: Runtime
 FROM eclipse-temurin:25-jre

@@ -46,7 +46,7 @@ Quando o usuário troca de aba, todos os timers/polling/WS continuam rodando. O 
 
 ### API Layer
 
-#### [MODIFY] [api.ts](file:///home/lucas/Projects/ishin-gateway/ishin-gateway-ui/src/api.ts)
+#### [MODIFY] [api.ts](../ishin-gateway-ui/src/api.ts)
 
 Reescrever `connectMetricsWs` substituindo a reconexão recursiva por uma classe `ManagedWebSocket` com lifecycle controlado:
 
@@ -59,7 +59,7 @@ Reescrever `connectMetricsWs` substituindo a reconexão recursiva por uma classe
 
 ### Hooks Layer
 
-#### [MODIFY] [useDashboard.ts](file:///home/lucas/Projects/ishin-gateway/ishin-gateway-ui/src/hooks/useDashboard.ts)
+#### [MODIFY] [useDashboard.ts](../ishin-gateway-ui/src/hooks/useDashboard.ts)
 
 Reescrever `useMetrics`:
 
@@ -71,7 +71,7 @@ Reescrever `useMetrics`:
 
 ### App Layer (enxuto)
 
-#### [MODIFY] [App.tsx](file:///home/lucas/Projects/ishin-gateway/ishin-gateway-ui/src/App.tsx)
+#### [MODIFY] [App.tsx](../ishin-gateway-ui/src/App.tsx)
 
 - Alterar o timestamp do header para usar um estado com `setInterval` ao invés de `new Date()` inline (que faz re-render a cada render sem motivo).
 
@@ -81,7 +81,7 @@ Reescrever `useMetrics`:
 
 ### Build
 ```bash
-cd /home/lucas/Projects/ishin-gateway/ishin-gateway-ui && npx tsc -b && npx vite build
+cd ishin-gateway-ui && npx tsc -b && npx vite build
 ```
 
 ### Verificação Manual (Usuário)

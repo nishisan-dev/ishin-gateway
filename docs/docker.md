@@ -95,6 +95,29 @@ docker run -d \
 
 ---
 
+## Build Local
+
+As dependências privadas do GitHub Packages devem ser resolvidas com um
+`settings.xml` injetado por BuildKit secret. O arquivo não deve ser copiado
+para o contexto de build nem commitado no repositório.
+
+```bash
+DOCKER_BUILDKIT=1 docker build \
+  --secret id=maven_settings,src="$HOME/.m2/settings.xml" \
+  -t ishin-gateway:local .
+```
+
+Para a imagem tunnel:
+
+```bash
+DOCKER_BUILDKIT=1 docker build \
+  --secret id=maven_settings,src="$HOME/.m2/settings.xml" \
+  -f Dockerfile.tunnel \
+  -t ishin-gateway:tunnel .
+```
+
+---
+
 ## Exemplo — Docker Compose (standalone)
 
 ```yaml

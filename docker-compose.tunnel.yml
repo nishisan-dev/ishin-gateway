@@ -1,5 +1,5 @@
 # docker-compose.tunnel.yml
-# Overlay para adicionar um no tunnel ao cluster Docker local.
+# Overlay para adicionar um nó tunnel ao cluster Docker local.
 #
 # Uso:
 #   docker compose -f docker-compose.yml -f docker-compose.cluster.yml -f docker-compose.tunnel.yml up -d
@@ -10,7 +10,7 @@
 #   - 9204: Dashboard do tunnel
 
 services:
-  # Reconfigura os tres proxies para se registrarem no tunnel.
+  # Reconfigura os três proxies para se registrarem no tunnel.
   ishin-node1:
     environment:
       ISHIN_CONFIG: /workspace/config/adapter-cluster-tunnel.yaml
