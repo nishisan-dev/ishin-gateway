@@ -187,7 +187,7 @@ O gateway detecta automaticamente respostas SSE do upstream e ativa o modo pass-
 ```
 
 - **Jetty threads** gerenciam a recepção e o ciclo de vida do request HTTP
-- **Virtual Threads** (Java 21) são usados no `Dispatcher` do OkHttp, permitindo milhares de requests upstream concorrentes sem bloqueio de OS threads
+- **Virtual Threads** (Java 25) são usados no `Dispatcher` do OkHttp, permitindo milhares de requests upstream concorrentes sem bloqueio de OS threads
 - **Connection Pool** é compartilhado entre todos os `OkHttpClient` instances, evitando TCP handshakes redundantes
 
 ---
@@ -389,5 +389,4 @@ O `ProxyMetrics` instrumenta o hot path com counters e timers Micrometer:
 | `ishin.tunnel.pool.members` | Gauge | vport, status | Membros por status no pool |
 
 Endpoint: `GET /actuator/prometheus` (porta `9190`)
-
 

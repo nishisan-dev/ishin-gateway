@@ -68,7 +68,7 @@ note right of pool
 end note
 
 note right of hc
-  Virtual Threads (Java 21)
+  Virtual Threads (Java 25)
   Scheduled probing
   Threshold-based transitions
 end note

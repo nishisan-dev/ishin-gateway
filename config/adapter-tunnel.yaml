@@ -1,0 +1,39 @@
+---
+mode: tunnel
+
+tunnel:
+  loadBalancing: "round-robin"
+  missedKeepalives: 3
+  drainTimeout: 30
+  bindAddress: "0.0.0.0"
+  autoPromoteStandby: true
+
+# --- Cluster Mode (NGrid) ---
+# The tunnel is a dedicated cluster member. Proxies publish their virtual ports
+# into the "ishin-tunnel-registry" DistributedMap.
+cluster:
+  enabled: true
+  host: "0.0.0.0"
+  port: 7100
+  clusterName: "ishin-cluster"
+  seeds:
+    - "ishin-tunnel:7100"
+    - "ishin-node1:7100"
+    - "ishin-node2:7100"
+    - "ishin-node3:7100"
+  replicationFactor: 2
+  dataDirectory: "/tmp/ngrid-data"
+
+# --- Observability Dashboard ---
+dashboard:
+  enabled: true
+  port: 9200
+  bindAddress: "0.0.0.0"
+  allowedIps: []
+  storage:
+    path: "/tmp/ishin-dashboard"
+    retentionHours: 24
+    scrapeIntervalSeconds: 15
+  zipkin:
+    enabled: true
+    baseUrl: "http://zipkin:9411"

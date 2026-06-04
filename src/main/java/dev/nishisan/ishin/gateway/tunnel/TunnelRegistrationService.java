@@ -229,10 +229,15 @@ public class TunnelRegistrationService {
 
     /**
      * Resolve o host para registro no tunnel.
-     * Usa o IP configurado no bloco cluster (o mesmo IP usado para comunicação NGrid),
-     * que é o IP real acessível pelos outros nós na rede.
+     * Usa o host anunciado para o mesh NGrid, permitindo override por
+     * {@code ISHIN_CLUSTER_HOST} em ambientes Docker.
      */
     private String resolveHost() {
+        String envHost = System.getenv("ISHIN_CLUSTER_HOST");
+        if (envHost != null && !envHost.isBlank()) {
+            return envHost.trim();
+        }
+
         // Preferir o host do cluster — é o IP real da rede usado pelo NGrid
         ServerConfiguration config = configurationManager.loadConfiguration();
         if (config.getCluster() != null && config.getCluster().getHost() != null

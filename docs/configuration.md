@@ -320,7 +320,7 @@ cluster:
 |-------|------|---------|-----------|
 | `enabled` | Boolean | `false` | Habilita o cluster mode NGrid |
 | `nodeId` | String | `null` | ID do nó (fallback: env `ISHIN_CLUSTER_NODE_ID` → hostname → UUID) |
-| `host` | String | `"0.0.0.0"` | Endereço de bind do mesh TCP |
+| `host` | String | `"0.0.0.0"` | Endereço do mesh TCP; pode ser sobrescrito por `ISHIN_CLUSTER_HOST` para anunciar um host roteável |
 | `port` | Integer | `7100` | Porta do mesh TCP NGrid |
 | `clusterName` | String | `"ishin-cluster"` | Nome do cluster (todos os nós devem usar o mesmo) |
 | `seeds` | List\<String\> | `[]` | Lista de peers no formato `host:port` (inclui o próprio nó — self-seed é filtrado automaticamente) |
@@ -622,6 +622,7 @@ cluster:
 | `TRACING_SAMPLE_RATE` | `1.0` | Taxa de amostragem de traces (`0.0` a `1.0`). Ex: `0.1` = 10% dos requests |
 | `SPRING_PROFILES_DEFAULT` | `dev` | Profile Spring Boot ativo (`dev`, `bench`) |
 | `ISHIN_CLUSTER_NODE_ID` | — | ID do nó do cluster (override do `nodeId` do YAML) |
+| `ISHIN_CLUSTER_HOST` | — | Host anunciado pelo nó no mesh NGrid (override do `host` do YAML) |
 | `ISHIN_INSTANCE_ID` | hostname | ID da instância para tracing spans |
 | `MANAGEMENT_PORT` | `9190` | Porta do Spring Boot Actuator (health, prometheus, admin API) |
 
@@ -809,4 +810,4 @@ circuitBreaker:
   slidingWindowSize: 100
 ```
 
-> **Nota:** O `nodeId` é diferente para cada instância. Em Docker, use a variável de ambiente `ISHIN_CLUSTER_NODE_ID` para definir o hostname do container. Veja `docker-compose.cluster.yml` para exemplo completo.
+> **Nota:** O `nodeId` e o host anunciado são diferentes para cada instância. Em Docker, use `ISHIN_CLUSTER_NODE_ID` e `ISHIN_CLUSTER_HOST` com o hostname do container. Veja `docker-compose.cluster.yml` para exemplo completo.

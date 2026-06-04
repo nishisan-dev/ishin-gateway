@@ -1,0 +1,63 @@
+# docker-compose.tunnel.yml
+# Overlay para adicionar um nó tunnel ao cluster Docker local.
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.cluster.yml -f docker-compose.tunnel.yml up -d
+#
+# Portas adicionais:
+#   - 9091: tunnel L4 virtual port -> proxies registrados
+#   - 9294: Actuator do tunnel
+#   - 9204: Dashboard do tunnel
+
+services:
+  # Reconfigura os três proxies para se registrarem no tunnel.
+  ishin-node1:
+    environment:
+      ISHIN_CONFIG: /workspace/config/adapter-cluster-tunnel.yaml
+
+  ishin-node2:
+    environment:
+      ISHIN_CONFIG: /workspace/config/adapter-cluster-tunnel.yaml
+
+  ishin-node3:
+    environment:
+      ISHIN_CONFIG: /workspace/config/adapter-cluster-tunnel.yaml
+
+  # --- Tunnel L4 Load Balancer ---
+  ishin-tunnel:
+    image: maven:3.9-eclipse-temurin-25
+    working_dir: /workspace
+    depends_on:
+      - static-backend
+      - zipkin
+    environment:
+      SPRING_PROFILES_DEFAULT: bench
+      ISHIN_CONFIG: /workspace/config/adapter-tunnel.yaml
+      TRACING_ENABLED: "false"
+      MAVEN_CONFIG: /tmp/.m2
+      ISHIN_CLUSTER_NODE_ID: "ishin-tunnel"
+      ISHIN_CLUSTER_HOST: "ishin-tunnel"
+    volumes:
+      - ./:/workspace
+      - maven-cache:/tmp/.m2
+      - ~/.m2/settings.xml:/tmp/maven-settings.xml:ro
+    command:
+      - /bin/bash
+      - -lc
+      - >-
+        flock /tmp/.m2/ishin-package.lock -c 'if [ ! -f target/ishin-gateway-1.0-SNAPSHOT.jar ] || find pom.xml src/main rules -newer target/ishin-gateway-1.0-SNAPSHOT.jar | grep -q .; then mvn -s /tmp/maven-settings.xml -Dmaven.repo.local=/tmp/.m2/repository -DskipTests package -q; fi' && java -Dspring.profiles.active=bench -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/ishin-gateway-1.0-SNAPSHOT.jar
+    ports:
+      - "9091:9091"
+      - "9294:9190"
+      - "9204:9200"
+
+  benchmark-ui:
+    environment:
+      TUNNEL_URL: "http://ishin-tunnel:9091/"
+    depends_on:
+      - static-backend
+      - nginx-cluster-lb
+      - ishin-node1
+      - ishin-node2
+      - ishin-node3
+      - ishin-tunnel

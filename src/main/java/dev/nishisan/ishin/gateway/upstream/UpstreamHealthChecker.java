@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>
  * Para cada pool com {@code healthCheck.enabled=true}, agenda um probe
  * periódico usando um OkHttp client dedicado com timeout curto.
- * Virtual Threads (Java 21) são usados para eficiência — um thread por probe.
+ * Virtual Threads (Java 25) são usados para eficiência — um thread por probe.
  * <p>
  * Ciclo de vida:
  * <ul>

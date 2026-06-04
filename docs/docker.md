@@ -55,6 +55,7 @@ docker run -d \
 |-------|---------|
 | `9091` | Listener HTTP (padrão do template de configuração — configurável via `adapter.yaml`) |
 | `9190` | Management API (Actuator: health, prometheus, admin) |
+| `9200` | Dashboard UI/API quando `dashboard.enabled=true` |
 | `7100` | NGrid mesh TCP (cluster mode) |
 | `18080` | Porta interna Spring Boot |
 
@@ -72,6 +73,7 @@ docker run -d \
 | `TRACING_ENABLED` | `true` | Habilita/desabilita tracing distribuído |
 | `TRACING_SAMPLE_RATE` | `1.0` | Taxa de amostragem (`0.0` a `1.0`) |
 | `ISHIN_CLUSTER_NODE_ID` | hostname | ID do nó no cluster NGrid |
+| `ISHIN_CLUSTER_HOST` | `cluster.host` | Host anunciado pelo nó no mesh NGrid |
 | `ISHIN_INSTANCE_ID` | hostname | ID da instância para tracing spans |
 | `MANAGEMENT_PORT` | `9190` | Porta do Actuator (health, prometheus, admin API) |
 | `SPRING_PROFILES_DEFAULT` | `dev` | Profile Spring Boot ativo |
@@ -90,6 +92,29 @@ docker run -d \
 
 > [!WARNING]
 > O volume `rules/` **não pode ser montado como `:ro`**. O `RulesBundleManager` materializa scripts recebidos via Admin API e `DistributedMap` diretamente no `rulesBasePath`, exigindo permissão de escrita em qualquer modo (standalone ou cluster).
+
+---
+
+## Build Local
+
+As dependências privadas do GitHub Packages devem ser resolvidas com um
+`settings.xml` injetado por BuildKit secret. O arquivo não deve ser copiado
+para o contexto de build nem commitado no repositório.
+
+```bash
+DOCKER_BUILDKIT=1 docker build \
+  --secret id=maven_settings,src="$HOME/.m2/settings.xml" \
+  -t ishin-gateway:local .
+```
+
+Para a imagem tunnel:
+
+```bash
+DOCKER_BUILDKIT=1 docker build \
+  --secret id=maven_settings,src="$HOME/.m2/settings.xml" \
+  -f Dockerfile.tunnel \
+  -t ishin-gateway:tunnel .
+```
 
 ---
 
@@ -127,6 +152,7 @@ services:
     environment:
       ISHIN_CONFIG: config/adapter.yaml
       ISHIN_CLUSTER_NODE_ID: ishin-1
+      ISHIN_CLUSTER_HOST: ishin-1
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
     volumes:
       - ./config/adapter-cluster.yaml:/app/config/adapter.yaml:ro
@@ -142,6 +168,7 @@ services:
     environment:
       ISHIN_CONFIG: config/adapter.yaml
       ISHIN_CLUSTER_NODE_ID: ishin-2
+      ISHIN_CLUSTER_HOST: ishin-2
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
     volumes:
       - ./config/adapter-cluster.yaml:/app/config/adapter.yaml:ro
@@ -157,6 +184,7 @@ services:
     environment:
       ISHIN_CONFIG: config/adapter.yaml
       ISHIN_CLUSTER_NODE_ID: ishin-3
+      ISHIN_CLUSTER_HOST: ishin-3
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
     volumes:
       - ./config/adapter-cluster.yaml:/app/config/adapter.yaml:ro
@@ -172,14 +200,38 @@ volumes:
   ishin-3-data:
 ```
 
+## Exemplo — Docker Compose (cluster + tunnel)
+
+O repositório inclui um overlay local para subir um quarto nó em `mode: tunnel` e reconfigurar os três proxies para publicar `virtualPort: 9091` no registry NGrid:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.cluster.yml -f docker-compose.tunnel.yml up -d
+```
+
+Portas locais do overlay:
+
+| Porta | Serviço |
+|-------|---------|
+| `9091` | Tunnel L4, balanceando para os proxies registrados |
+| `9204` | Dashboard do nó tunnel |
+| `9294` | Actuator do nó tunnel |
+
+Arquivos usados pelo overlay:
+
+| Arquivo | Uso |
+|---------|-----|
+| `config/adapter-tunnel.yaml` | Nó dedicado `mode: tunnel` |
+| `config/adapter-cluster-tunnel.yaml` | Nós proxy com `tunnel.registration.enabled=true` |
+| `Dockerfile.tunnel` | Imagem standalone com config tunnel embutida |
+
 ---
 
 ## Detalhes da Imagem
 
 | Propriedade | Valor |
 |-------------|-------|
-| **Base image** | `eclipse-temurin:21-jre` |
-| **JVM** | OpenJDK 21 (Temurin) |
+| **Base image** | `eclipse-temurin:25-jre` |
+| **JVM** | OpenJDK 25 (Temurin) |
 | **GC** | ZGC Generational (`-XX:+UseZGC -XX:+ZGenerational`) |
 | **Memória padrão** | `-Xms128m -Xmx256m` |
 | **Workdir** | `/app` |

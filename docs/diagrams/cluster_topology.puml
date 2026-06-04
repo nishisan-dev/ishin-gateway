@@ -10,9 +10,9 @@ System_Boundary(lb_boundary, "Load Balancer") {
 }
 
 System_Boundary(cluster_boundary, "ishin-gateway Cluster (NGrid Mesh)") {
-    Container(node1, "ishin-gateway Node 1", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
-    Container(node2, "ishin-gateway Node 2", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
-    Container(node3, "ishin-gateway Node 3", "Java 21 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
+    Container(node1, "ishin-gateway Node 1", "Java 25 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
+    Container(node2, "ishin-gateway Node 2", "Java 25 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
+    Container(node3, "ishin-gateway Node 3", "Java 25 / Javalin 7", "Proxy HTTP + NGridNode (leader ou follower)")
 }
 
 System_Boundary(state_boundary, "Estado Distribuído (DistributedMap)") {

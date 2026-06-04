@@ -1,10 +1,13 @@
 ---
+mode: proxy
+
 endpoints:
   default:
     listeners:
       http-noauth:
         listenAddress: "0.0.0.0"
         listenPort: 9091
+        virtualPort: 9091
         ssl: false
         scriptOnly: false
         defaultScript: "Default.groovy"
@@ -40,14 +43,15 @@ endpoints:
     dispatcherMaxRequestsPerHost: 256
 
 # --- Cluster Mode (NGrid) ---
-# nodeId é resolvido automaticamente via env ISHIN_CLUSTER_NODE_ID → hostname → UUID
-# host pode ser sobrescrito por ISHIN_CLUSTER_HOST para anunciar o hostname roteável no mesh
+# nodeId is resolved by env ISHIN_CLUSTER_NODE_ID; the advertised host can be
+# overridden by ISHIN_CLUSTER_HOST for Docker service-name routing.
 cluster:
   enabled: true
   host: "0.0.0.0"
   port: 7100
   clusterName: "ishin-cluster"
   seeds:
+    - "ishin-tunnel:7100"
     - "ishin-node1:7100"
     - "ishin-node2:7100"
     - "ishin-node3:7100"
@@ -55,7 +59,6 @@ cluster:
   dataDirectory: "/tmp/ngrid-data"
 
 # --- Observability Dashboard ---
-# UI embutida do ishin-gateway. Cada nó publica esta porta como 9201/9202/9203 no host.
 dashboard:
   enabled: true
   port: 9200
@@ -68,3 +71,13 @@ dashboard:
   zipkin:
     enabled: true
     baseUrl: "http://zipkin:9411"
+
+# --- Tunnel Registration ---
+# Each proxy publishes realPort 9091 as virtualPort 9091. The tunnel container
+# opens the virtual port and balances TCP connections across these proxy nodes.
+tunnel:
+  registration:
+    enabled: true
+    keepaliveInterval: 3
+    status: "ACTIVE"
+    weight: 100

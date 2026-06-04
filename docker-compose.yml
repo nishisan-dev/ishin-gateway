@@ -55,7 +55,7 @@ services:
       - "9411:9411"
 
   ishin-gateway:
-    image: maven:3.9.9-eclipse-temurin-21
+    image: maven:3.9-eclipse-temurin-25
     user: "${UID:-1000}:${GID:-1000}"
     working_dir: /workspace
     depends_on:
@@ -75,7 +75,7 @@ services:
     command:
       - /bin/bash
       - -lc
-      - mvn -s /tmp/maven-settings.xml -DskipTests clean package && java -Dspring.profiles.active=dev -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/ishin-gateway-1.0-SNAPSHOT.jar
+      - mvn -s /tmp/maven-settings.xml -Dmaven.repo.local=/tmp/.m2/repository -DskipTests clean package && java -Dspring.profiles.active=dev -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/ishin-gateway-1.0-SNAPSHOT.jar
     ports:
       - "9090:9090"
       - "9091:9091"

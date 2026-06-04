@@ -1,6 +1,6 @@
 # ishin-gateway — Product Overview
 
-> API Gateway & Reverse Proxy programável de alta performance para ambientes Java 21, com motor de regras Groovy, upstream pools com active & passive health check, circuit breaker, rate limiting, CLI operacional, cluster mode e observabilidade nativa.
+> API Gateway & Reverse Proxy programável de alta performance para ambientes Java 25, com motor de regras Groovy, upstream pools com active & passive health check, circuit breaker, rate limiting, CLI operacional, cluster mode e observabilidade nativa.
 
 ---
 
@@ -16,7 +16,7 @@ O ishin-gateway nasceu da necessidade de um gateway HTTP que fosse **programáve
 | Single point of failure         | Cluster mode NGrid com leader election, token sharing e rules deploy atômico   |
 | Falta de visibilidade           | 13 spans semânticos por request (Zipkin/Brave) + métricas Prometheus           |
 | Autenticação complexa           | JWT validation na entrada + OAuth2 token injection transparente no upstream    |
-| Overhead de proxy               | Streaming zero-copy, Virtual Threads (Java 21) e connection pooling otimizado  |
+| Overhead de proxy               | Streaming zero-copy, Virtual Threads (Java 25) e connection pooling otimizado  |
 | Operação de rules complexa      | CLI dedicado (`ishin-cli`) + Admin API REST para deploy, listagem e versionamento |
 
 ---
@@ -87,7 +87,7 @@ backends:
 
 **Priority Groups:** Membros são agrupados por `priority`. O pool sempre usa o tier de menor valor. Só faz fallback quando **todos** os membros do tier atual estão DOWN.
 
-**Active Health Check:** Probes periódicos via HTTP GET em Virtual Threads (Java 21). Transições baseadas em thresholds configuráveis. Se nenhum membro disponível → **503 Service Unavailable**.
+**Active Health Check:** Probes periódicos via HTTP GET em Virtual Threads (Java 25). Transições baseadas em thresholds configuráveis. Se nenhum membro disponível → **503 Service Unavailable**.
 
 #### Passive Health Check
 
@@ -664,7 +664,7 @@ O ishin-gateway é otimizado para baixa latência no hot path:
 
 | Característica | Detalhe |
 |----------------|---------|
-| **Threading** | Jetty 12 thread pool + OkHttp Dispatcher com Virtual Threads (Java 21) |
+| **Threading** | Jetty 12 thread pool + OkHttp Dispatcher com Virtual Threads (Java 25) |
 | **Streaming** | Modo `returnPipe` — transferência zero-copy InputStream → OutputStream (buffer 8KB) |
 | **Connection Pool** | Pool compartilhado com keep-alive configurável, evitando TCP handshakes |
 | **Groovy** | Recompilação a cada 60s, ~600µs por execução de script |
@@ -677,7 +677,7 @@ O ishin-gateway é otimizado para baixa latência no hot path:
 
 | Componente | Função |
 |------------|--------|
-| **Java 21** | Runtime com Virtual Threads |
+| **Java 25** | Runtime com Virtual Threads |
 | **Spring Boot 3.5** | Configuração, ciclo de vida, Actuator |
 | **Javalin 7** (Jetty 12) | HTTP Framework |
 | **OkHttp 4** | HTTP Client para backends |
