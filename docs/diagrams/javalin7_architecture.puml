@@ -35,7 +35,7 @@ package "Docker Compose" {
         package "Javalin 7.0.1 + Jetty 12" as javalin {
             rectangle "**Javalin.create(config)**\nconfig.concurrency.useVirtualThreads = true\nconfig.routes → registerRoutes()" as create #C8E6C9
 
-            rectangle "**VirtualThreadPool**\n(Loom nativo - JDK 21)" as vtp #A5D6A7
+            rectangle "**VirtualThreadPool**\n(Loom nativo - JDK 25)" as vtp #A5D6A7
 
             rectangle "**Listener HTTP**\n:9090 / :9091" as listener #C8E6C9
         }

@@ -6,7 +6,7 @@
 
 ## Prompt
 
-Crie uma apresentação de slides profissional para o **ishin-gateway** — um API Gateway & Reverse Proxy programável de alta performance construído em Java 21. A apresentação é direcionada a **engenheiros de software, arquitetos de soluções e tech leads** que avaliam soluções de API Gateway para ambientes de produção.
+Crie uma apresentação de slides profissional para o **ishin-gateway** — um API Gateway & Reverse Proxy programável de alta performance construído em Java 25. A apresentação é direcionada a **engenheiros de software, arquitetos de soluções e tech leads** que avaliam soluções de API Gateway para ambientes de produção.
 
 **Estilo visual:** Dark mode com fundo `#0d1117`. Tipografia moderna (Inter ou similar sans-serif). Cor primária `#58a6ff` (azul-elétrico), accent `#f78166` (laranja para destaques), success `#3fb950` (verde para status/health). Minimalista e técnico — nada de clip art ou imagens genéricas. Use diagramas técnicos, blocos de código estilizados e ícones flat.
 
@@ -21,7 +21,7 @@ Crie uma apresentação de slides profissional para o **ishin-gateway** — um A
 - **Título:** ishin-gateway
 - **Subtítulo:** Programmable API Gateway & Reverse Proxy
 - **Tagline:** Alta performance · Observável por padrão · Escalável horizontalmente
-- **Badges visuais:** Java 21 · Virtual Threads · Groovy · Open Source
+- **Badges visuais:** Java 25 · Virtual Threads · Groovy · Open Source
 - **Elemento visual:** Ícone minimalista de gateway com fluxo de requests
 
 ---
@@ -268,7 +268,7 @@ Tabela visual com ícones:
 
 | Característica | Detalhe |
 |----------------|---------|
-| ⚡ **Threading** | Jetty 12 + OkHttp com Virtual Threads (Java 21) |
+| ⚡ **Threading** | Jetty 12 + OkHttp com Virtual Threads (Java 25) |
 | 📡 **Streaming** | Zero-copy InputStream → OutputStream (buffer 8KB) |
 | 🔌 **Connection Pool** | Pool compartilhado com keep-alive configurável |
 | 📝 **Groovy** | ~600µs por execução de script |
@@ -327,7 +327,7 @@ Link: `github.com/nishisan-dev/ishin-gateway`
 > **Programmable. Observable. Resilient.**
 
 **Subtítulo:**
-> Java 21 · Open Source · Production Ready
+> Java 25 · Open Source · Production Ready
 
 **Call to action:**
 > ⭐ github.com/nishisan-dev/ishin-gateway  

@@ -19,9 +19,11 @@ package dev.nishisan.ishin.gateway.health;
 import dev.nishisan.ishin.gateway.cluster.ClusterService;
 import dev.nishisan.ishin.gateway.manager.ConfigurationManager;
 import dev.nishisan.ishin.gateway.observability.service.TracerService;
+import dev.nishisan.ishin.gateway.tunnel.TunnelService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -51,20 +53,23 @@ public class IshinHealthIndicator implements HealthIndicator {
     @Autowired
     private ClusterService clusterService;
 
+    @Autowired
+    private ObjectProvider<TunnelService> tunnelServiceProvider;
+
     @Override
     public Health health() {
         try {
             var config = configurationManager.loadConfiguration();
-            if (config == null || config.getEndpoints() == null || config.getEndpoints().isEmpty()) {
+            if (config == null) {
                 return Health.down()
-                        .withDetail("reason", "No endpoints configured")
+                        .withDetail("reason", "Configuration not loaded")
                         .withDetail("instanceId", tracerService.getInstanceId())
                         .build();
             }
 
             Health.Builder builder = Health.up()
                     .withDetail("instanceId", tracerService.getInstanceId())
-                    .withDetail("endpointsConfigured", config.getEndpoints().size());
+                    .withDetail("mode", config.getMode());
 
             // Cluster info
             if (clusterService.isClusterMode()) {
@@ -76,6 +81,46 @@ public class IshinHealthIndicator implements HealthIndicator {
                 builder.withDetail("clusterMode", false);
             }
 
+            if (config.isTunnelMode()) {
+                TunnelService tunnelService = tunnelServiceProvider.getIfAvailable();
+                boolean tunnelRunning = tunnelService != null && tunnelService.isRunning();
+                builder.withDetail("tunnelRunning", tunnelRunning);
+
+                if (!clusterService.isClusterMode()) {
+                    return Health.down()
+                            .withDetail("reason", "Tunnel mode requires cluster mode")
+                            .withDetail("instanceId", tracerService.getInstanceId())
+                            .withDetail("mode", config.getMode())
+                            .build();
+                }
+
+                if (!tunnelRunning) {
+                    return Health.down()
+                            .withDetail("reason", "Tunnel service not running")
+                            .withDetail("instanceId", tracerService.getInstanceId())
+                            .withDetail("mode", config.getMode())
+                            .withDetail("clusterMode", true)
+                            .withDetail("clusterNodeId", clusterService.getLocalNodeId())
+                            .withDetail("activeMembers", clusterService.getActiveMembersCount())
+                            .build();
+                }
+
+                if (tunnelService.getTunnelRegistry() != null) {
+                    builder.withDetail("virtualPorts", tunnelService.getTunnelRegistry().getActiveVirtualPorts().size())
+                            .withDetail("tunnelMembers", tunnelService.getTunnelRegistry().getTotalMemberCount());
+                }
+                return builder.build();
+            }
+
+            if (config.getEndpoints() == null || config.getEndpoints().isEmpty()) {
+                return Health.down()
+                        .withDetail("reason", "No endpoints configured")
+                        .withDetail("instanceId", tracerService.getInstanceId())
+                        .withDetail("mode", config.getMode())
+                        .build();
+            }
+
+            builder.withDetail("endpointsConfigured", config.getEndpoints().size());
             return builder.build();
         } catch (Exception e) {
             logger.error("Health check failed", e);

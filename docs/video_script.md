@@ -6,7 +6,7 @@
 
 ## Prompt Principal
 
-Crie um vídeo de **2 a 3 minutos** estilo **tech product showcase** para o **ishin-gateway** — um API Gateway & Reverse Proxy de alta performance construído em Java 21. O vídeo deve transmitir **confiabilidade, velocidade e controle total** sobre o tráfego HTTP. Tom visual: **dark mode**, tipografia moderna (Inter/JetBrains Mono), cores predominantes em **azul-elétrico e ciano** com acentos em **laranja** para destaques. Estilo de motion graphics minimalista e técnico, similar a vídeos de produto da Cloudflare, Datadog ou HashiCorp.
+Crie um vídeo de **2 a 3 minutos** estilo **tech product showcase** para o **ishin-gateway** — um API Gateway & Reverse Proxy de alta performance construído em Java 25. O vídeo deve transmitir **confiabilidade, velocidade e controle total** sobre o tráfego HTTP. Tom visual: **dark mode**, tipografia moderna (Inter/JetBrains Mono), cores predominantes em **azul-elétrico e ciano** com acentos em **laranja** para destaques. Estilo de motion graphics minimalista e técnico, similar a vídeos de produto da Cloudflare, Datadog ou HashiCorp.
 
 ---
 
@@ -26,11 +26,11 @@ Crie um vídeo de **2 a 3 minutos** estilo **tech product showcase** para o **is
 
 ### Cena 2 — O que é (0:10–0:25)
 
-**Visual:** Logo do ishin-gateway com tagline animada. Badges de tecnologia aparecem ao redor: Java 21, Virtual Threads, Groovy, NGrid.
+**Visual:** Logo do ishin-gateway com tagline animada. Badges de tecnologia aparecem ao redor: Java 25, Virtual Threads, Groovy, NGrid.
 
 **Texto em tela:**
 > **ishin-gateway** — Programmable API Gateway & Reverse Proxy  
-> Built on Java 21 · Virtual Threads · Javalin 7 · Jetty 12
+> Built on Java 25 · Virtual Threads · Javalin 7 · Jetty 12
 
 **Pontos-chave (aparecem em sequência):**
 - Proxy reverso HTTP de alta performance
@@ -138,12 +138,12 @@ Crie um vídeo de **2 a 3 minutos** estilo **tech product showcase** para o **is
 
 ### Cena 9 — Fechamento (2:40–3:00)
 
-**Visual:** Tela escura com logo centralizado. Tech stack badges (Java 21, Spring Boot 3.5, Javalin 7, NGrid, Resilience4j, Brave/Zipkin) aparecem ao redor do logo. Badges de empacotamento (.deb, Docker, systemd).
+**Visual:** Tela escura com logo centralizado. Tech stack badges (Java 25, Spring Boot 3.5, Javalin 7, NGrid, Resilience4j, Brave/Zipkin) aparecem ao redor do logo. Badges de empacotamento (.deb, Docker, systemd).
 
 **Texto em tela:**
 > **ishin-gateway**  
 > Programmable. Observable. Resilient.  
-> Java 21 · Open Source · Production Ready  
+> Java 25 · Open Source · Production Ready  
 >  
 > ⭐ github.com/nishisan-dev/ishin-gateway
 

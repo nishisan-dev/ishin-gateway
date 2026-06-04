@@ -65,7 +65,7 @@ Quando habilitado (`healthCheck.enabled: true`), o ishin-gateway faz probes peri
 - **Falha**: HTTP não-2xx ou erro de conexão/timeout
 - **Transição DOWN**: após `unhealthyThreshold` falhas consecutivas
 - **Transição UP**: após `healthyThreshold` sucessos consecutivos
-- **Virtual Threads**: cada probe roda em Virtual Thread (Java 21), sem bloquear threads de plataforma
+- **Virtual Threads**: cada probe roda em Virtual Thread (Java 25), sem bloquear threads de plataforma
 
 ### Sem Health Check
 

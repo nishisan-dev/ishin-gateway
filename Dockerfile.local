@@ -1,0 +1,6 @@
+FROM eclipse-temurin:25-jre
+WORKDIR /app
+COPY target/ishin-gateway-*.jar app.jar
+COPY rules/ rules/
+EXPOSE 9091 9190 9200 7100 18080
+ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:+ZGenerational", "-Xms128m", "-Xmx256m", "-jar", "app.jar"]

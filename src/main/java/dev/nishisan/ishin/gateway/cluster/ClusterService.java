@@ -117,8 +117,11 @@ public class ClusterService {
                 });
             });
 
-            logger.info("NGrid cluster started — nodeId: [{}], cluster: [{}], port: [{}]",
-                    localNodeId, clusterConfig.getClusterName(), clusterConfig.getPort());
+            logger.info("NGrid cluster started — nodeId: [{}], host: [{}], cluster: [{}], port: [{}]",
+                    localNodeId,
+                    resolveClusterHost(clusterConfig.getHost()),
+                    clusterConfig.getClusterName(),
+                    clusterConfig.getPort());
 
             // Registrar Gauges de cluster no Micrometer
             Gauge.builder("ishin.cluster.active.members", this, ClusterService::getActiveMembersCount)
@@ -239,7 +242,7 @@ public class ClusterService {
 
     private NGridConfig buildNGridConfig(ClusterConfiguration config) {
         NodeId nodeId = NodeId.of(localNodeId);
-        NodeInfo local = new NodeInfo(nodeId, config.getHost(), config.getPort());
+        NodeInfo local = new NodeInfo(nodeId, resolveClusterHost(config.getHost()), config.getPort());
 
         NGridConfig.Builder builder = NGridConfig.builder(local)
                 .clusterName(config.getClusterName())
@@ -284,6 +287,14 @@ public class ClusterService {
         } catch (Exception e) {
             return "";
         }
+    }
+
+    private static String resolveClusterHost(String configured) {
+        String envHost = System.getenv("ISHIN_CLUSTER_HOST");
+        if (envHost != null && !envHost.isBlank()) {
+            return envHost.trim();
+        }
+        return configured;
     }
 
     private static String resolveNodeId(String configured) {

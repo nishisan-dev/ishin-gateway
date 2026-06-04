@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-Esta documentação descreve a migração do `ishin-gateway` de **Javalin 6.5.0 + Jetty 11** para **Javalin 7.0.1 + Jetty 12**, com suporte nativo a Virtual Threads (Project Loom) do JDK 21.
+Esta documentação descreve a migração do `ishin-gateway` de **Javalin 6.5.0 + Jetty 11** para **Javalin 7.0.1 + Jetty 12**, com suporte nativo a Virtual Threads (Project Loom) do JDK 25.
 
 **Branch:** `feature/javalin7-jetty12-loom`
 **Data:** 2026-03-08

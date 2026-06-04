@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────
-# Ishin Gateway — Multi-stage Docker Image
+# Ishin Gateway — Tunnel Mode Docker Image
 # ─────────────────────────────────────────────────────
 
 # Stage 1: Build
@@ -10,6 +10,7 @@ COPY settings.xml /tmp/settings.xml
 RUN mvn -s /tmp/settings.xml dependency:go-offline -U -q || true
 COPY src/ src/
 COPY rules/ rules/
+COPY config/adapter-tunnel.yaml config/adapter-tunnel.yaml
 RUN mvn -s /tmp/settings.xml -DskipTests clean package -U
 
 # Stage 2: Runtime
@@ -17,5 +18,7 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=builder /build/target/ishin-gateway-*.jar app.jar
 COPY --from=builder /build/rules/ rules/
-EXPOSE 9091 9190 9200 7100 18080
+COPY --from=builder /build/config/adapter-tunnel.yaml config/adapter-tunnel.yaml
+ENV ISHIN_CONFIG=/app/config/adapter-tunnel.yaml
+EXPOSE 9091 9190 9200 7100
 ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:+ZGenerational", "-Xms128m", "-Xmx256m", "-jar", "app.jar"]

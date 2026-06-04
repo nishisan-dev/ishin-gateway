@@ -1,8 +1,8 @@
 # ishin-gateway
 
-> API Gateway & Reverse Proxy de alta performance com motor de regras dinâmicas Groovy, cluster mode (NGrid), circuit breaker, rate limiting, observabilidade integrada (Zipkin + Prometheus) e autenticação OAuth2/JWT — construído em Java 21.
+> API Gateway & Reverse Proxy de alta performance com motor de regras dinâmicas Groovy, cluster mode (NGrid), circuit breaker, rate limiting, observabilidade integrada (Zipkin + Prometheus) e autenticação OAuth2/JWT — construído em Java 25.
 
-[![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)](https://openjdk.org/projects/jdk/21/)
+[![Java 25](https://img.shields.io/badge/Java-25-orange?logo=openjdk)](https://openjdk.org/projects/jdk/25/)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
 [![Javalin 7](https://img.shields.io/badge/Javalin-7.0-green)](https://javalin.io/)
 
@@ -35,7 +35,7 @@ O **ishin-gateway** é um gateway HTTP programável que atua como proxy reverso 
 | **Response Processors** | Closures Groovy para pós-processamento da resposta upstream |
 | **Streaming** | Modo `returnPipe` para transferência zero-copy de large payloads |
 | **Múltiplos Listeners** | Portas independentes com configurações de segurança distintas |
-| **Connection Pooling** | OkHttp ConnectionPool + Dispatcher com Virtual Threads (Java 21) |
+| **Connection Pooling** | OkHttp ConnectionPool + Dispatcher com Virtual Threads (Java 25) |
 | **Async Logging** | Log4j2 + LMAX Disruptor para logging fora do hot path |
 | **Cluster Mode** | NGrid mesh TCP com leader election e DistributedMap para coordenação entre instâncias |
 | **Token Sharing** | Tokens OAuth2 compartilhados via POW-RBL (Publish-on-write + Read-before-login) |

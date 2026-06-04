@@ -4,6 +4,9 @@
 # Uso:
 #   docker compose -f docker-compose.yml -f docker-compose.cluster.yml up -d
 #
+# Com tunnel L4:
+#   docker compose -f docker-compose.yml -f docker-compose.cluster.yml -f docker-compose.tunnel.yml up -d
+#
 # Para bench mode (sem tracing, log INFO):
 #   docker compose -f docker-compose.yml -f docker-compose.bench.yml -f docker-compose.cluster.yml up -d
 #
@@ -19,6 +22,8 @@
 #   - 5080: nginx LB (round-robin → 3 nós Ishin Gateway)
 #   - 9191/9192/9193: cada nó Ishin Gateway diretamente (listener http-noauth)
 #   - 9291/9292/9293: Actuator health de cada nó
+#   - 9201/9202/9203: Dashboard de cada nó
+#   - 9091/9204/9294: tunnel virtual port, dashboard e Actuator (com docker-compose.tunnel.yml)
 #
 services:
   # --- Desabilitar o serviço ishin-gateway standalone (0 réplicas) ---
@@ -45,7 +50,7 @@ services:
 
   # --- Nó 1 (base template via YAML anchor) ---
   ishin-node1: &ishin-node
-    image: maven:3.9.9-eclipse-temurin-21
+    image: maven:3.9-eclipse-temurin-25
     working_dir: /workspace
     depends_on:
       - static-backend
@@ -55,6 +60,7 @@ services:
       TRACING_ENABLED: "false"
       MAVEN_CONFIG: /tmp/.m2
       ISHIN_CLUSTER_NODE_ID: "ishin-node1"
+      ISHIN_CLUSTER_HOST: "ishin-node1"
     volumes: &ishin-volumes
       - ./:/workspace
       - maven-cache:/tmp/.m2
@@ -62,10 +68,12 @@ services:
     command: &ishin-cmd
       - /bin/bash
       - -lc
-      - mvn -s /tmp/maven-settings.xml -DskipTests package -q && java -Dspring.profiles.active=bench -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/ishin-gateway-1.0-SNAPSHOT.jar
+      - >-
+        flock /tmp/.m2/ishin-package.lock -c 'if [ ! -f target/ishin-gateway-1.0-SNAPSHOT.jar ] || find pom.xml src/main rules -newer target/ishin-gateway-1.0-SNAPSHOT.jar | grep -q .; then mvn -s /tmp/maven-settings.xml -Dmaven.repo.local=/tmp/.m2/repository -DskipTests package -q; fi' && java -Dspring.profiles.active=bench -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/ishin-gateway-1.0-SNAPSHOT.jar
     ports:
       - "9191:9091"
       - "9291:9190"
+      - "9201:9200"
 
   # --- Nó 2 ---
   ishin-node2:
@@ -73,9 +81,11 @@ services:
     environment:
       <<: *ishin-env
       ISHIN_CLUSTER_NODE_ID: "ishin-node2"
+      ISHIN_CLUSTER_HOST: "ishin-node2"
     ports:
       - "9192:9091"
       - "9292:9190"
+      - "9202:9200"
 
   # --- Nó 3 ---
   ishin-node3:
@@ -83,9 +93,11 @@ services:
     environment:
       <<: *ishin-env
       ISHIN_CLUSTER_NODE_ID: "ishin-node3"
+      ISHIN_CLUSTER_HOST: "ishin-node3"
     ports:
       - "9193:9091"
       - "9293:9190"
+      - "9203:9200"
 
   # --- Benchmark UI: aponta para nós de cluster ---
   benchmark-ui:

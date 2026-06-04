@@ -143,7 +143,7 @@ public class HttpProxyManager {
     // Connection pool compartilhado entre todos os OkHttpClients (configurável via adapter.yaml)
     private final ConnectionPool sharedConnectionPool;
 
-    // Dispatcher compartilhado com Virtual Threads (Java 21)
+    // Dispatcher compartilhado com Virtual Threads (Java 25)
     private final Dispatcher sharedDispatcher;
 
     public HttpProxyManager(OAuthClientManager oauthManager, EndPointConfiguration configuration, ProxyMetrics proxyMetrics, BackendCircuitBreakerManager circuitBreakerManager, RateLimitManager rateLimitManager, UpstreamPoolManager upstreamPoolManager, PassiveHealthChecker passiveHealthChecker) {

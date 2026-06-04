@@ -27,6 +27,7 @@ CLUSTER_NODE1_URL = os.environ.get("CLUSTER_NODE1_URL")
 CLUSTER_NODE2_URL = os.environ.get("CLUSTER_NODE2_URL")
 CLUSTER_NODE3_URL = os.environ.get("CLUSTER_NODE3_URL")
 CLUSTER_LB_URL = os.environ.get("CLUSTER_LB_URL")
+TUNNEL_URL = os.environ.get("TUNNEL_URL")
 
 ENDPOINTS = [
     ("baseline", "Baseline (nginx direto)", BASELINE_URL),
@@ -43,6 +44,8 @@ if CLUSTER_NODE3_URL:
     ENDPOINTS.append(("cluster_node3", "Cluster Node 3", CLUSTER_NODE3_URL))
 if CLUSTER_LB_URL:
     ENDPOINTS.append(("cluster_lb", "Cluster LB (3 nós)", CLUSTER_LB_URL))
+if TUNNEL_URL:
+    ENDPOINTS.append(("tunnel_l4", "Tunnel L4 (NGrid)", TUNNEL_URL))
 
 TOTAL_REQUESTS = 5000
 CONCURRENCY_LEVELS = [1, 10, 50, 100, 500]
