@@ -202,7 +202,7 @@ public class TunnelRegistry {
         List<String> keysToForget = new ArrayList<>();
 
         for (String registryKey : keysSnapshot) {
-            TunnelRegistryEntry registryEntry = registryMap.get(registryKey).orElse(null);
+            TunnelRegistryEntry registryEntry = registryMap.getOptional(registryKey).orElse(null);
             if (registryEntry == null) {
                 // Chave ainda não registrada ou temporariamente indisponível — ignorar.
                 // Não removemos de knownRegistryKeys para que o poller retente.

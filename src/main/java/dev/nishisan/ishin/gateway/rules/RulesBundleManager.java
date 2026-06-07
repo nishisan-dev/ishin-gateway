@@ -116,7 +116,7 @@ public class RulesBundleManager {
             // Se não temos bundle local, verificar se o cluster já tem um
             if (persisted == null && distributedRulesMap != null) {
                 try {
-                    RulesBundle fromCluster = distributedRulesMap.get(RULES_MAP_KEY).orElse(null);
+                    RulesBundle fromCluster = distributedRulesMap.getOptional(RULES_MAP_KEY).orElse(null);
                     if (fromCluster != null) {
                         logger.info("Found rules bundle v{} in cluster — applying...", fromCluster.version());
                         applyBundleLocally(fromCluster);
@@ -151,7 +151,7 @@ public class RulesBundleManager {
      */
     private void pollClusterForUpdates() {
         try {
-            RulesBundle fromCluster = distributedRulesMap.get(RULES_MAP_KEY).orElse(null);
+            RulesBundle fromCluster = distributedRulesMap.getOptional(RULES_MAP_KEY).orElse(null);
             if (fromCluster != null) {
                 RulesBundle current = activeBundle.get();
                 if (current == null || fromCluster.version() > current.version()) {

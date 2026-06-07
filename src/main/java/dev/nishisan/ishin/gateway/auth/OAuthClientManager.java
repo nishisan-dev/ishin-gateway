@@ -198,7 +198,7 @@ public class OAuthClientManager implements ITokenProvider {
         //
         if (distributedTokenMap != null) {
             try {
-                SerializableTokenData shared = distributedTokenMap.get(ssoName).orElse(null);
+                SerializableTokenData shared = distributedTokenMap.getOptional(ssoName).orElse(null);
                 if (shared != null && !isTokenExpired(shared)) {
                     TokenResponse response = toTokenResponse(shared);
                     OauthServerClientConfiguration config = configuredSso.get(ssoName);
