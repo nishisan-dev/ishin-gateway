@@ -398,7 +398,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>25</java.version>
-        <nishi-utils.version>8.14.1</nishi-utils.version>
+        <nishi-utils.version>8.14.2</nishi-utils.version>
         <maven.compiler.release>25</maven.compiler.release>
         <exec.mainClass>dev.nishisan.ishin.gateway.IshinGatewayApplication</exec.mainClass>
     </properties>

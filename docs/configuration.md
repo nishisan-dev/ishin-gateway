@@ -327,6 +327,14 @@ cluster:
 | `replicationFactor` | Integer | `2` | Fator de replicação dos dados no DistributedMap |
 | `dataDirectory` | String | `"./data/ngrid"` | Diretório para persistência de dados NGrid |
 
+O mapa `ishin-oauth-tokens` usa o modo volátil padrão do NGrid. A partir de
+`nishi-utils-core` 8.14.2, um nó que reinicia com cursores persistidos e sem o
+estado do mapa precisa recuperar um snapshot de um peer antes de anunciar esse
+progresso e ficar elegível à liderança, inclusive após desligamento normal.
+Mantenha um peer saudável durante o retorno para permitir essa recuperação.
+A correção está descrita na
+[issue nishi-utils #212](https://github.com/nishisan-dev/nishi-utils/issues/212).
+
 ---
 
 ## Admin API

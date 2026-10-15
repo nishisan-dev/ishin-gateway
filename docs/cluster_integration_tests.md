@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-O ishin-gateway suporta um modo cluster opcional via [NGrid](https://github.com/nishisan-dev/nishi-utils), permitindo múltiplas instâncias coordenarem estado distribuído (tokens OAuth, leader election, health). Os testes de integração validam este comportamento com **2 nós reais** rodando em containers Docker efêmeros.
+O ishin-gateway suporta um modo cluster opcional via [NGrid](https://github.com/nishisan-dev/nishi-utils), permitindo múltiplas instâncias coordenarem estado distribuído (tokens OAuth, leader election, health). Os testes de integração validam este comportamento com **2 ou 3 nós reais** rodando em containers Docker efêmeros.
 
 ## Stack de Teste
 
@@ -88,6 +88,109 @@ O ishin-gateway suporta um modo cluster opcional via [NGrid](https://github.com/
 > **POW-RBL** = Publish-on-write + Read-before-login. Qualquer nó que obtém um token publica no mapa distribuído. Antes de ir ao IdP, cada nó verifica se existe token válido no mapa.
 
 ---
+
+## Comutação e retorno do líder — `NGridClusterFailoverIntegrationTest`
+
+Este teste inicia três gateways simultaneamente, com quórum de dois, um Keycloak
+real e um backend Nginx em rede Docker isolada. Executa dois cenários independentes: desligamento
+normal do líder e queda abrupta por `SIGKILL`.
+
+Em cada cenário, verifica:
+
+- Formação do cluster com três membros e exatamente um líder.
+- Replicação de uma regra inicial e compartilhamento do mesmo token OAuth,
+  com apenas um login no IdP.
+- Eleição de um novo líder entre os dois sobreviventes e continuidade HTTP
+  durante a comutação e a reintegração.
+- Publicação de outra versão das regras e aquisição de um token para uma segunda
+  configuração SSO enquanto o antigo líder permanece desligado.
+- Reinício do mesmo container, preservando identidade e disco, e convergência
+  para três membros com exatamente um líder estável durante dez segundos.
+  A afinidade do NGrid pode devolver a liderança ao nó que retornou após sincronizar.
+- Aplicação da regra atualizada e recuperação dos dois tokens, incluindo o criado
+  durante a ausência, sem novos logins no IdP.
+
+As respostas do backend confirmam o Bearer e a execução da regra. Os tokens são
+comparados por SHA-256, e as chamadas ao endpoint OAuth são contadas no Nginx;
+a validação não depende de mensagens de log do gateway.
+
+```bash
+mvn package -DskipTests
+mvn test -Dtest=NGridClusterFailoverIntegrationTest
+```
+
+O teste é incluído automaticamente em `mvn clean verify`. Não cobre partições de
+rede, expiração de tokens, escritas concorrentes no instante do desligamento
+ou compatibilidade entre versões diferentes do gateway.
+
+### Reprodução antes da correção em 15/10/2026
+
+Execução com `nishi-utils-core` 8.14.1, Java 25 e Docker remoto em `192.168.5.92`:
+
+| Cenário | Amostras HTTP | Erros HTTP | Logins OAuth | Resultado |
+|---|---:|---:|---:|---|
+| Desligamento normal + retorno | 246 | 0 | 3 (esperado: 2) | Falha no reaproveitamento do token inicial pelo nó reintegrado |
+| Queda abrupta + retorno | 242 | 0 | 2 | Aprovado |
+
+Nos dois casos houve nova eleição, retorno dos três membros, liderança estável
+após a reintegração e aplicação da regra v2. O token criado durante a ausência
+foi recuperado nos dois cenários. No desligamento normal, o token inicial mudou
+no nó reintegrado e houve um login adicional no IdP. Essa falha ocorreu também
+na execução anterior e fundamentou a regressão de recuperação de tokens.
+
+Essa execução terminou com dois cenários executados, uma falha e nenhum erro
+de infraestrutura. A reprodução isolada descrita abaixo confirmou a causa na
+biblioteca NGrid.
+
+### Resultado com a mitigação temporária do gateway (8.14.1)
+
+O mapa OAuth passou a ser declarado no bootstrap com persistência
+`ASYNC_WITH_FSYNC` e recuperação antes da liberação dos handlers do NGrid.
+No mesmo Docker remoto, os dois cenários passaram:
+
+| Cenário | Amostras HTTP | Erros HTTP | Logins OAuth | Resultado |
+|---|---:|---:|---:|---|
+| Desligamento normal + retorno | 254 | 0 | 2 | Aprovado |
+| Queda abrupta + retorno | 258 | 0 | 2 | Aprovado |
+
+A validação da correção também passou nos 111 testes unitários e nos outros
+19 testes de integração: 132 testes aprovados no total, sendo 21 integrações
+executadas no Docker remoto.
+
+O caso da biblioteca foi isolado em dois `NGridNode` TCP, sem gateway: após o
+restart normal do líder, ele retornou `null` para uma entrada ainda presente na
+réplica local do sobrevivente. A correção geral para mapas voláteis foi solicitada
+na [issue nishi-utils #212](https://github.com/nishisan-dev/nishi-utils/issues/212).
+Essa mitigação foi validada com diretórios inicialmente criados com persistência.
+
+### Correção na biblioteca — 8.14.2
+
+A [release 8.14.2](https://github.com/nishisan-dev/nishi-utils/releases/tag/v8.14.2)
+resolve a recuperação de mapas voláteis após shutdown limpo, exigindo snapshot
+antes de liberar o progresso restaurado e a elegibilidade à liderança.
+O gateway foi atualizado para essa versão e a mitigação temporária que persistia
+tokens em disco foi removida. O teste de comutação usa novamente o modo volátil
+padrão, para exercitar diretamente a correção da biblioteca.
+
+Validação em 15/10/2026, Java 25, no Docker remoto em `192.168.5.92`:
+
+| Cenário | Amostras HTTP | Erros HTTP | Logins OAuth | Resultado |
+|---|---:|---:|---:|---|
+| Desligamento normal + retorno | 228 | 0 | 2 | Aprovado |
+| Queda abrupta + retorno | 258 | 0 | 2 | Aprovado |
+
+Os três nós preservaram o token inicial e recuperaram o token criado durante a
+ausência, aplicaram a regra v2 e convergiram para uma liderança estável.
+A suíte completa (`mvn clean verify`) passou: 111 testes unitários e 21 testes
+de integração, sem falhas, erros ou testes ignorados.
+
+A reprodução TCP isolada da issue também passou com o JAR oficial da release:
+o líder voltou com a entrada original tanto no modo volátil quanto ao habilitar
+`ASYNC_WITH_FSYNC` no retorno usando o mesmo diretório de cursores.
+
+O GitHub Packages respondeu HTTP 401 à credencial local durante esta validação.
+Foi usado o JAR publicado na release oficial, instalado no repositório Maven
+local com o POM embutido e o POM pai da tag `v8.14.2`.
 
 ## Como Executar
 

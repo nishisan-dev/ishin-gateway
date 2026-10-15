@@ -6,12 +6,12 @@ Guia para desenvolvedores que desejam compilar, testar e contribuir com o ishin-
 
 | Ferramenta | Versão mínima | Uso |
 |------------|:-------------:|-----|
-| **Java (OpenJDK)** | 21 | Compilação e runtime |
+| **Java (OpenJDK)** | 25 | Compilação e runtime |
 | **Maven** | 3.9+ | Build e gestão de dependências |
 | **Docker** | 24+ | Testes de integração (Testcontainers) |
 
 > [!NOTE]
-> O projeto utiliza dependências publicadas no **GitHub Packages** (`dev.nishisan:nishi-utils`, `nishi-utils-spring`).
+> O projeto utiliza dependências publicadas no **GitHub Packages** (`dev.nishisan:nishi-utils-core`, `nishi-utils-spring`).
 > Configure seu `~/.m2/settings.xml` com um token GitHub que tenha permissão `read:packages`.
 
 ## Build
@@ -80,9 +80,10 @@ mvn clean verify
 | `UpstreamPoolTest` | Unitário | Estratégias de load balancing (round-robin, weighted, failover, random) |
 | `UpstreamHealthCheckerTest` | Unitário | Health checks ativos, recuperação de membros |
 | `CircuitBreakerIntegrationTest` | Integração | Transições CLOSED → OPEN → HALF_OPEN com Testcontainers |
-| `ClusterIntegrationTest` | Integração | Cluster NGrid 3 nós com replicação de tokens/rules |
-| `ClusterOAuthIntegrationTest` | Integração | Compartilhamento OAuth entre nós do cluster |
-| `ClusterRulesIntegrationTest` | Integração | Deploy e propagação de rules via cluster |
+| `NGridClusterIntegrationTest` | Integração | Formação do cluster e eleição de líder |
+| `NGridClusterOAuthIntegrationTest` | Integração | Compartilhamento OAuth entre nós do cluster |
+| `NGridClusterRulesDeployIntegrationTest` | Integração | Deploy e propagação de rules via cluster |
+| `NGridClusterFailoverIntegrationTest` | Integração | Queda e retorno do líder com três nós, tráfego HTTP e recuperação de regras e tokens OAuth |
 
 ## Convenções
 
