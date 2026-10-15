@@ -46,10 +46,13 @@ mvn test -Dtest='ConfigurationManagerTest,RulesBundleManagerTest,RateLimitManage
 
 ### Testes de Integração
 
-Usam **Testcontainers** (requerem Docker rodando):
+Usam **Testcontainers** (requerem Docker rodando). `mvn clean verify` executa
+os testes unitários, empacota o JAR e roda a integração pelo Maven Failsafe.
+Para selecionar testes de integração diretamente pelo Surefire, empacote antes:
 
 ```bash
 # Rodar apenas testes de integração
+mvn package -DskipTests
 mvn test -Dtest='*IntegrationTest'
 
 # Exemplo: Circuit Breaker

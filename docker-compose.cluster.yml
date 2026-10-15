@@ -69,7 +69,7 @@ services:
       - /bin/bash
       - -lc
       - >-
-        flock /tmp/.m2/ishin-package.lock -c 'if [ ! -f target/ishin-gateway-1.0-SNAPSHOT.jar ] || find pom.xml src/main rules -newer target/ishin-gateway-1.0-SNAPSHOT.jar | grep -q .; then mvn -s /tmp/maven-settings.xml -Dmaven.repo.local=/tmp/.m2/repository -DskipTests package -q; fi' && java -Dspring.profiles.active=bench -XX:+UseZGC -XX:+ZGenerational -Xms256m -Xmx512m -jar target/ishin-gateway-1.0-SNAPSHOT.jar
+        flock /tmp/.m2/ishin-package.lock -c 'if [ ! -f target/ishin-gateway-1.0-SNAPSHOT.jar ] || find pom.xml src/main rules -newer target/ishin-gateway-1.0-SNAPSHOT.jar | grep -q .; then mvn -s /tmp/maven-settings.xml -Dmaven.repo.local=/tmp/.m2/repository -DskipTests package -q; fi' && java -Dspring.profiles.active=bench -XX:+UseZGC -Xms256m -Xmx512m -jar target/ishin-gateway-1.0-SNAPSHOT.jar
     ports:
       - "9191:9091"
       - "9291:9190"

@@ -100,7 +100,12 @@ O ishin-gateway suporta um modo cluster opcional via [NGrid](https://github.com/
 
 ### Comandos
 
+As imagens usam o JAR empacotado localmente, sem enviar credenciais Maven ao Docker.
+
 ```bash
+# Empacotar o gateway antes dos testes (repetir após alterar código)
+mvn -s ~/.m2/settings.xml package -DskipTests
+
 # ─── Executar TODOS os testes de cluster ───────────────────────
 mvn -s ~/.m2/settings.xml test -Dtest="NGridCluster*IntegrationTest"
 
@@ -117,7 +122,7 @@ mvn -s ~/.m2/settings.xml test -Dtest="NGridCluster*IntegrationTest" \
   -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 ```
 
-> **Nota:** Na primeira execução, o Docker buildará a imagem ishin-gateway via Dockerfile multi-stage (~2-3 min). Execuções subsequentes usam cache (~20s de build).
+> **Nota:** As imagens de teste copiam o JAR de `target/` e as regras padrão para uma imagem Java 25. Não há compilação Maven dentro do container.
 
 ### Interpretando os Logs
 

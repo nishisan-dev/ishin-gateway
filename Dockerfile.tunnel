@@ -23,4 +23,4 @@ COPY --from=builder /build/rules/ rules/
 COPY --from=builder /build/config/adapter-tunnel.yaml config/adapter-tunnel.yaml
 ENV ISHIN_CONFIG=/app/config/adapter-tunnel.yaml
 EXPOSE 9091 9190 9200 7100
-ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:+ZGenerational", "-Xms128m", "-Xmx256m", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:+UseZGC", "-Xms128m", "-Xmx256m", "-jar", "app.jar"]

@@ -257,7 +257,7 @@ O script faz warmup, roda testes com concorrência 1/10/50, e gera relatório co
 | Javalin | 7.0.1 | HTTP Framework (Jetty 12) |
 | OkHttp | 4.12.0 | HTTP Client para backends |
 | Groovy | 3.0.12 | Motor de regras dinâmicas |
-| NGrid (nishi-utils) | 3.1.0 | Cluster: mesh TCP, leader election, DistributedMap |
+| NGrid (nishi-utils) | 8.14.1 | Cluster: mesh TCP, leader election, DistributedMap |
 | Resilience4j | 2.2.0 | Circuit breaker para proteção de backends |
 | Micrometer | — | Métricas Prometheus (via Spring Boot Actuator) |
 | Brave | 6.0.3 | Instrumentação de tracing |
@@ -329,6 +329,7 @@ mvn clean compile
 mvn test -Dtest='!*IntegrationTest' -DfailIfNoTests=false
 
 # Testes de integração (requer Docker)
+mvn package -DskipTests
 mvn test -Dtest='*IntegrationTest'
 ```
 

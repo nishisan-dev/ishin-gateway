@@ -16,6 +16,10 @@
  */
 package dev.nishisan.ishin.gateway.rules;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import com.fasterxml.jackson.databind.util.StdConverter;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.Map;
@@ -37,10 +41,22 @@ import java.util.Map;
  */
 public record RulesBundle(
         long version,
+        @JsonSerialize(using = ToStringSerializer.class)
+        @JsonDeserialize(converter = InstantConverter.class)
         Instant deployedAt,
         String deployedBy,
         Map<String, byte[]> scripts
 ) implements Serializable {
 
     private static final long serialVersionUID = 1L;
+
+    /**
+     * Restaura o instante ISO-8601 nos codecs JSON do transporte e da replicação NGrid.
+     */
+    public static final class InstantConverter extends StdConverter<String, Instant> {
+        @Override
+        public Instant convert(String value) {
+            return Instant.parse(value);
+        }
+    }
 }

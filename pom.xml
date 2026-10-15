@@ -289,20 +289,14 @@
         <dependency>
             <groupId>dev.nishisan</groupId>
             <artifactId>nishi-utils-core</artifactId>
-            <version>4.3.0</version>
+            <version>${nishi-utils.version}</version>
         </dependency>
 
         <!-- nishi-utils-spring: bridge StatsUtils → Micrometer -->
         <dependency>
             <groupId>dev.nishisan</groupId>
             <artifactId>nishi-utils-spring</artifactId>
-            <version>1.0.3</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>dev.nishisan</groupId>
-                    <artifactId>nishi-utils</artifactId>
-                </exclusion>
-            </exclusions>
+            <version>2.1.1</version>
         </dependency>
 
         <!-- Micrometer Prometheus registry: /actuator/prometheus endpoint -->
@@ -341,6 +335,33 @@
     -->
     <build>
         <plugins>
+            <!-- Integração executa após o empacotamento do JAR usado pelos containers. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>**/*IntegrationTest.java</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <includes>
+                        <include>**/*IntegrationTest.java</include>
+                    </includes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -377,6 +398,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>25</java.version>
+        <nishi-utils.version>8.14.1</nishi-utils.version>
         <maven.compiler.release>25</maven.compiler.release>
         <exec.mainClass>dev.nishisan.ishin.gateway.IshinGatewayApplication</exec.mainClass>
     </properties>

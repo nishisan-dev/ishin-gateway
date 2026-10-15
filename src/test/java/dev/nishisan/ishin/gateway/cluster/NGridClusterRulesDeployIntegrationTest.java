@@ -25,6 +25,7 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+import dev.nishisan.ishin.gateway.test.GatewayTestImage;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.MountableFile;
@@ -34,7 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -79,10 +79,7 @@ public class NGridClusterRulesDeployIntegrationTest {
 
     // ─── Build da imagem Ishin Gateway ───────────────────────────────────────────
 
-    private static final ImageFromDockerfile ishinImage = new ImageFromDockerfile("ishin-rules-test", false)
-            .withFileFromPath(".", Path.of(System.getProperty("user.dir")))
-            .withFileFromPath("settings.xml",
-                    Path.of(System.getProperty("user.home"), ".m2", "settings.xml"));
+    private static final ImageFromDockerfile ishinImage = GatewayTestImage.create("ishin-rules-test");
 
     // ─── Backend mock (Nginx) ─────────────────────────────────────────────
 
@@ -107,6 +104,7 @@ public class NGridClusterRulesDeployIntegrationTest {
             .withEnv("MANAGEMENT_PORT", "9190")
             .withEnv("ISHIN_CONFIG", "/app/config/adapter-test-cluster-rules.yaml")
             .withEnv("ISHIN_CLUSTER_NODE_ID", "ishin-rules-node1")
+            .withEnv("ISHIN_CLUSTER_HOST", "ishin-rules-node1")
             .withEnv("ISHIN_INSTANCE_ID", "rules-test-node-1")
             .withCopyFileToContainer(
                     MountableFile.forClasspathResource("adapter-test-cluster-rules.yaml"),
@@ -130,6 +128,7 @@ public class NGridClusterRulesDeployIntegrationTest {
             .withEnv("MANAGEMENT_PORT", "9190")
             .withEnv("ISHIN_CONFIG", "/app/config/adapter-test-cluster-rules.yaml")
             .withEnv("ISHIN_CLUSTER_NODE_ID", "ishin-rules-node2")
+            .withEnv("ISHIN_CLUSTER_HOST", "ishin-rules-node2")
             .withEnv("ISHIN_INSTANCE_ID", "rules-test-node-2")
             .withCopyFileToContainer(
                     MountableFile.forClasspathResource("adapter-test-cluster-rules.yaml"),
@@ -264,12 +263,16 @@ public class NGridClusterRulesDeployIntegrationTest {
                 "Deploy should report 1 script");
 
         // 4. Verificar que a versão foi atualizada
-        JsonNode versionAfter = getJsonWithAuth(adminUrl(node1, "/version"), API_KEY);
-        log.info("Version after deploy: {}", versionAfter);
-        assertEquals("active", versionAfter.path("status").asText(),
-                "Should have active bundle after deploy");
-        assertEquals(1, versionAfter.path("version").asLong(),
-                "Active version should be 1");
+        // O deploy pode ser encaminhado ao líder; aguardar a replicação local.
+        await().atMost(30, TimeUnit.SECONDS)
+                .pollInterval(2, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    JsonNode versionAfter = getJsonWithAuth(adminUrl(node1, "/version"), API_KEY);
+                    assertEquals("active", versionAfter.path("status").asText(),
+                            "Should have active bundle after deploy");
+                    assertEquals(1, versionAfter.path("version").asLong(),
+                            "Active version should be 1");
+                });
 
         // 5. Segundo deploy — versão incrementa
         String testScript2 = """

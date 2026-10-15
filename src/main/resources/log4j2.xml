@@ -12,7 +12,7 @@
         <AsyncLogger name="com.google.api.client.http" level="info" additivity="false">
             <AppenderRef ref="STDOUT"/>
         </AsyncLogger>
-        <Root level="$${env:LOGGER_LEVEL:-info}">
+        <Root level="${env:LOGGER_LEVEL:-info}">
             <AppenderRef ref="STDOUT"/>
         </Root>
     </Loggers>

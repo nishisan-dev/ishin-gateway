@@ -27,6 +27,7 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+import dev.nishisan.ishin.gateway.test.GatewayTestImage;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.MountableFile;
@@ -35,7 +36,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -80,10 +80,7 @@ public class NGridClusterOAuthIntegrationTest {
 
     // ─── Build da imagem Ishin Gateway ───────────────────────────────────────────
 
-    private static final ImageFromDockerfile ishinImage = new ImageFromDockerfile("ishin-oauth-test", false)
-            .withFileFromPath(".", Path.of(System.getProperty("user.dir")))
-            .withFileFromPath("settings.xml",
-                    Path.of(System.getProperty("user.home"), ".m2", "settings.xml"));
+    private static final ImageFromDockerfile ishinImage = GatewayTestImage.create("ishin-oauth-test");
 
     // ─── Keycloak ─────────────────────────────────────────────────────────
 
@@ -111,7 +108,7 @@ public class NGridClusterOAuthIntegrationTest {
             .withNetwork(network)
             .withNetworkAliases("mock-backend")
             .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("testcontainers/mock-backend.conf"),
+                    MountableFile.forClasspathResource("testcontainers/mock-backend-oauth.conf"),
                     "/etc/nginx/conf.d/default.conf")
             .withExposedPorts(BACKEND_PORT)
             .waitingFor(Wait.forHttp("/health").forPort(BACKEND_PORT).forStatusCode(200));
@@ -125,6 +122,7 @@ public class NGridClusterOAuthIntegrationTest {
             .withEnv("SPRING_PROFILES_DEFAULT", "test")
             .withEnv("ISHIN_CONFIG", "/app/config/adapter-test-cluster-oauth.yaml")
             .withEnv("ISHIN_CLUSTER_NODE_ID", "ishin-oauth-node1")
+            .withEnv("ISHIN_CLUSTER_HOST", "ishin-oauth-node1")
             .withEnv("ISHIN_INSTANCE_ID", "oauth-node-1")
             .withCopyFileToContainer(
                     MountableFile.forClasspathResource("adapter-test-cluster-oauth.yaml"),
@@ -146,6 +144,7 @@ public class NGridClusterOAuthIntegrationTest {
             .withEnv("SPRING_PROFILES_DEFAULT", "test")
             .withEnv("ISHIN_CONFIG", "/app/config/adapter-test-cluster-oauth.yaml")
             .withEnv("ISHIN_CLUSTER_NODE_ID", "ishin-oauth-node2")
+            .withEnv("ISHIN_CLUSTER_HOST", "ishin-oauth-node2")
             .withEnv("ISHIN_INSTANCE_ID", "oauth-node-2")
             .withCopyFileToContainer(
                     MountableFile.forClasspathResource("adapter-test-cluster-oauth.yaml"),
@@ -181,7 +180,7 @@ public class NGridClusterOAuthIntegrationTest {
     }
 
     private String proxyUrl(GenericContainer<?> container) {
-        return String.format("http://%s:%d/test-oauth",
+        return String.format("http://%s:%d/authenticated",
                 container.getHost(), container.getMappedPort(PROXY_PORT));
     }
 
@@ -246,9 +245,7 @@ public class NGridClusterOAuthIntegrationTest {
 
         log.info("Nó 1 obteve token e serviu request. Verificando Nó 1 autenticou com Bearer...");
 
-        // Validar que o Nó 1 autenticou com Bearer token (log nível DEBUG aparece como STDOUT)
-        assertTrue(containerLogContains(node1, "Interceptor Called Authenticated"),
-                "Node 1 should have authenticated request with Bearer token");
+        // O backend retorna 401 se não receber o cabeçalho Bearer.
 
         log.info("Nó 1 OK. Enviando request ao Nó 2...");
 
@@ -261,9 +258,7 @@ public class NGridClusterOAuthIntegrationTest {
                             "Node 2 proxy should return 200 (token from DistributedMap or Keycloak)");
                 });
 
-        // Validar que o Nó 2 também autenticou com Bearer token
-        assertTrue(containerLogContains(node2, "Interceptor Called Authenticated"),
-                "Node 2 should have authenticated request with Bearer token");
+        // O HTTP 200 confirma que o backend recebeu o Bearer também pelo nó 2.
 
         // Avaliar se o DistributedMap foi utilizado (log info)
         boolean node2ReadFromMap = containerLogContains(node2, "loaded from cluster DistributedMap");

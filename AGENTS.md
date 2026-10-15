@@ -36,6 +36,7 @@ mvn clean package -DskipTests
 mvn test -Dtest='!*IntegrationTest' -DfailIfNoTests=false
 
 # Integration tests (requires Docker — uses Testcontainers)
+mvn package -DskipTests
 mvn test -Dtest='*IntegrationTest'
 
 # Full suite

@@ -27,6 +27,7 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+import dev.nishisan.ishin.gateway.test.GatewayTestImage;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.MountableFile;
@@ -35,7 +36,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -75,10 +75,7 @@ public class NGridClusterIntegrationTest {
 
     // ─── Build da imagem Ishin Gateway ───────────────────────────────────────────
 
-    private static final ImageFromDockerfile ishinImage = new ImageFromDockerfile("ishin-test", false)
-            .withFileFromPath(".", Path.of(System.getProperty("user.dir")))
-            .withFileFromPath("settings.xml",
-                    Path.of(System.getProperty("user.home"), ".m2", "settings.xml"));
+    private static final ImageFromDockerfile ishinImage = GatewayTestImage.create("ishin-test");
 
     // ─── Backend mock (Nginx) ─────────────────────────────────────────────
 
@@ -101,6 +98,7 @@ public class NGridClusterIntegrationTest {
             .withEnv("SPRING_PROFILES_DEFAULT", "test")
             .withEnv("ISHIN_CONFIG", "/app/config/adapter-test-cluster.yaml")
             .withEnv("ISHIN_CLUSTER_NODE_ID", "ishin-node1")
+            .withEnv("ISHIN_CLUSTER_HOST", "ishin-node1")
             .withEnv("ISHIN_INSTANCE_ID", "test-node-1")
             .withCopyFileToContainer(
                     MountableFile.forClasspathResource("adapter-test-cluster.yaml"),
@@ -122,6 +120,7 @@ public class NGridClusterIntegrationTest {
             .withEnv("SPRING_PROFILES_DEFAULT", "test")
             .withEnv("ISHIN_CONFIG", "/app/config/adapter-test-cluster.yaml")
             .withEnv("ISHIN_CLUSTER_NODE_ID", "ishin-node2")
+            .withEnv("ISHIN_CLUSTER_HOST", "ishin-node2")
             .withEnv("ISHIN_INSTANCE_ID", "test-node-2")
             .withCopyFileToContainer(
                     MountableFile.forClasspathResource("adapter-test-cluster.yaml"),

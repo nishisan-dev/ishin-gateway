@@ -20,4 +20,4 @@ WORKDIR /app
 COPY --from=builder /build/target/ishin-gateway-*.jar app.jar
 COPY --from=builder /build/rules/ rules/
 EXPOSE 9091 9190 9200 7100 18080
-ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:+ZGenerational", "-Xms128m", "-Xmx256m", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:+UseZGC", "-Xms128m", "-Xmx256m", "-jar", "app.jar"]
