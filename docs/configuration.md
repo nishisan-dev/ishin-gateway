@@ -40,6 +40,42 @@ tunnel:             # Tunnel mode — configuração do TCP L4 LB
 
 ---
 
+## Modo de operação (`mode`)
+
+O campo `mode` fica no nível raiz do `adapter.yaml` e define o papel do processo
+no encaminhamento do tráfego. É uma String opcional, com padrão `"proxy"` quando
+omitida. As opções são `proxy` e `tunnel`; a comparação ignora maiúsculas e
+minúsculas. Use os valores em minúsculas nos arquivos de configuração.
+
+| Valor | Comportamento | Quando usar |
+|-------|---------------|-------------|
+| `proxy` | Inicia os listeners HTTP/HTTPS de `endpoints`, executa as regras Groovy e encaminha requisições aos backends, aplicando as configurações de autenticação, circuit breaker e rate limiting. | Para atender e processar requisições HTTP, diretamente ou atrás de um nó tunnel. |
+| `tunnel` | Atua como balanceador TCP de camada 4: abre portas virtuais e encaminha conexões aos proxies registrados via NGrid. Requer `cluster.enabled: true`. | Para distribuir conexões entre várias instâncias proxy sem processar o conteúdo HTTP nesse nó. |
+
+Em `mode: tunnel`, os listeners HTTP/HTTPS de `endpoints` e os componentes de
+OAuth, circuit breaker e rate limiting do proxy não são inicializados. Essas
+funções são executadas nos nós `proxy` que recebem as conexões encaminhadas.
+Cada processo assume apenas um dos dois papéis.
+
+O modo de operação é independente da participação em cluster: `mode: proxy`
+pode funcionar standalone (`cluster.enabled: false` ou bloco `cluster` ausente)
+ou em cluster (`cluster.enabled: true`). Para um proxy anunciar seus listeners
+aos nós tunnel, habilite também `tunnel.registration.enabled: true`; ele continua
+em `mode: proxy`.
+
+```yaml
+# Proxy HTTP/HTTPS standalone (também é o modo padrão quando mode é omitido)
+mode: proxy
+cluster:
+  enabled: false
+# Configure os listeners e backends no bloco endpoints.
+```
+
+Os campos específicos de `tunnel`, o registro dos proxies e os exemplos completos
+dos dois papéis estão na seção [Tunnel Mode](#tunnel-mode).
+
+---
+
 ## Listeners
 
 Cada listener é um servidor HTTP independente com porta, regras de segurança e backend default próprios.
@@ -527,13 +563,13 @@ Para referência detalhada, veja [docs/rate-limiting.md](rate-limiting.md).
 
 ## Tunnel Mode
 
-O bloco `tunnel:` configura o Tunnel Mode, permitindo que o ishin-gateway funcione como um TCP L4 load balancer. Requer `mode: tunnel` e `cluster.enabled: true`.
+Com [`mode: tunnel`](#modo-de-operação-mode), o bloco `tunnel:` configura o
+balanceador TCP de camada 4 e requer `cluster.enabled: true`. Os listeners TCP
+são abertos nas portas virtuais anunciadas pelos proxies registrados.
 
-### Campos de Nível Raiz
-
-| Campo | Tipo | Default | Descrição |
-|-------|------|---------|-----------|
-| `mode` | String | `"proxy"` | Modo de operação: `proxy` ou `tunnel` |
+Com `mode: proxy`, o sub-bloco `tunnel.registration:` permite anunciar os
+listeners do proxy ao tunnel, também com `cluster.enabled: true`. As opções de
+balanceamento do tunnel se aplicam ao processo em `mode: tunnel`.
 
 ### Campos do Tunnel (bloco `tunnel:`)
 
